@@ -51,11 +51,8 @@ const resolveData = (val, cb, err) => typeof val == 'string' ?
 // The interface represents the "input" vector type. The last component is always 1 and is used to make the transformations support translation
 // The output vector type is irrelevant to the interface and only matters for how the content is eventually rendered (specifically, 2 outputs means 2D and 3 outputs means 2D + perspective)
 
-
-
 // Highly optimized algorithm to find the minimum boundary of a loop line in 2D space within the bounds of the [0,0,1,1] rect
-let larr = []
-function _loopBoundary2(){
+const larr = [], _loopBoundary2 = () => {
 	if(!larr.length) return null
 	let x0 = 1, x1 = 0, y0 = 1, y1 = 0
 	let prevx = larr[0], prevy = larr[1], prevInB = abs(prevy-.5)<=.5
@@ -92,8 +89,7 @@ function _loopBoundary2(){
 	}
 	larr.length = 0
 	return x1>x0&&y1>y0 ? {x0, y0, x1, y1} : null
-}
-function _loopBoundary3(){
+}, _loopBoundary3 = () => {
 	if(!larr.length) return null
 	let x0 = 1, x1 = 0, y0 = 1, y1 = 0
 	let prevx = larr[0], prevy = larr[1], prevz = larr[2]
@@ -729,7 +725,7 @@ gl.bindBuffer(gl.PIXEL_UNPACK_BUFFER, unpackBuffer)
 let premultAlpha = true, lastPbo = null, lastPboSize = -1, pboUsed = false
 // Drawing-related global state
 let pmask = 302024719, sh = null, sv = null, shfCount = 0, shfMask = 0, shCount = 0
-let curfb = null, boundUsed = 0, shuniBind = 0, shpType = 5, shpStart = 0, shpLen = 4, shp = null, shpElT = 0
+let lastd = null, curt = null, curfb = null, boundUsed = 0, shuniBind = 0, shpType = 5, shpStart = 0, shpLen = 4, shp = null, shpElT = 0
 gl.bindFramebuffer(gl.READ_FRAMEBUFFER, gl.createFramebuffer())
 const drawfb = gl.createFramebuffer(), buf = gl.createBuffer()
 gl.bindBuffer(gl.ARRAY_BUFFER, buf)
@@ -1611,7 +1607,6 @@ Object.assign($.Blend = (src = 17, combine = 9, dst = 0, a2c = false) => src|dst
 	BEHIND: 149751,
 	INVERT: 154105
 })
-let lastd = null
 function draw(b = shuniBind){
 	gl.bufferData(gl.ARRAY_BUFFER, iarr.subarray(0, i), 35040)
 	fd += i; i /= shCount; fdc++; fs += i
@@ -2051,7 +2046,6 @@ $.Shader = (src, {params, defaults: _defaults, uniforms, uniformDefaults: _uDefa
 			used |= 1<<sz-1
 			if((t&15)>13) iCount++
 			else fCount++
-			n = 'int'
 		}
 		_uDefaults[id] ??= sz==1?0:sz==2?v2z:sz==3?v3z:t>=28&&t<32?null:v4z
 		uniFnParams.push(`a${id}=_uDefaults[${id}]`)
