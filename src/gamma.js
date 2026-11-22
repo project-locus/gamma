@@ -892,7 +892,8 @@ class Tex{
 		if(typeof r != 'function') r = e=>{}
 		if(!this.t.src) return void r(this)
 		if(!this.t._tex) Tex.load(this.t)
-		this.t.src.push(r, j, this)
+		if(this.t.src) this.t.src.push(r, j, this)
+		else r(this)
 	}
 	static load(t){
 		let src = t.src, loaded = 0
