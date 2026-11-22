@@ -5,7 +5,7 @@ Gamma.font = $ => {
 	const msdfShader = $.Shader.MSDF = $.Shader("void main(){vec3 c=param0(pos).rgb;color=param2*clamp(param1.y*(max(min(c.r,c.g),min(max(c.r,c.g),c.b))-.5+param1.x)+.5,0.,1.);}", {params: [$.COLOR, $.VEC2, $.VEC4], defaults: [null, {x:0,y:1}, vec4one]})
 	msdfShader.sdf = true
 $.Shader.sdf = (src, o={}) => {
-	let pr = 'float field(vec2 uv){vec3 c=param0(uv).rgb;return max(min(c.r, c.g), min(max(c.r, c.g), c.b)); }\n#define scale param1\n'
+	let pr = 'float field(vec2 uv){vec3 c=param0(uv).rgb;return max(min(c.r, c.g), min(max(c.r, c.g), c.b));}\nfloat field_soft(vec2 uv){return param0(uv).a;}\n#define scale param1\n'
 	if(!Array.isArray(o.params)) o.params = typeof o.params == 'number' ? [o.params] : []
 	if(!Array.isArray(o.defaults)) o.defaults = o.defaults === undefined ? [] : [o.defaults]
 	for(let i = 0; i < o.params.length; i++)
@@ -1134,10 +1134,11 @@ $.Shader.sdf = (src, o={}) => {
 			const k = this.get(a*16777216+b)
 			return typeof k == 'number' ? k : 0
 		}
-		chlumsky(src, atlas = 'atlas.png', opts = $.ANISOTROPY | $.SMOOTH, mips = 1, fixes = $.Font.defaultFixes){ if(src.endsWith('/')) src += 'index.json'; fetch(src).then(a => (src=a.url,a.json())).then(d => {
-			const {atlas:{type,distanceRange,size,width,height},metrics:{ascender,descender},glyphs,kerning} = d
+		chlumsky(src, atlas = 'atlas.png', fixes = $.Font.defaultFixes){ if(src.endsWith('/')) src += 'index.json'; fetch(src).then(a => (src=a.url,a.json())).then(d => {
+			const {atlas:{distanceRange,size,width,height},metrics:{ascender,descender},glyphs,kerning} = d
+			const type = d.atlas.type.toLowerCase()
 			this.rangeFactor = distanceRange/size
-			const img = $.Texture.from(new URL(atlas, src).href, opts, type.toLowerCase().endsWith('msdf') ? $.Formats.RGB : $.Formats.RG, mips)
+			const img = typeof atlas == 'string' ? $.Texture.from(new URL(atlas, src).href, $.ANISOTROPY | $.SMOOTH, type.endsWith('msdf') || type.endsWith('mtsdf') ? $.Formats.RGB : $.Formats.RG, 1) : atlas
 			this.ascend = ascender/(ascender-descender)
 			for(const {unicode1,unicode2,advance} of kerning) super.set(unicode2+unicode1*16777216, advance)
 			for(const {unicode,advance,planeBounds:pb,atlasBounds:ab} of glyphs) super.set(~unicode, pb ? {
@@ -1148,12 +1149,12 @@ $.Shader.sdf = (src, o={}) => {
 			fixes?.(this)
 			img.then(() => this.done())
 		}, this.error.bind(this)); return this}
-		bmfont(src, baselineOffset=0, opts = $.ANISOTROPY | $.SMOOTH, mips = 1, fixes = $.Font.defaultFixes){ fetch(src).then(a => (src=a.url,a.json())).then(d => {
+		bmfont(src, baselineOffset=0, fixes = $.Font.defaultFixes){ fetch(src).then(a => (src=a.url,a.json())).then(d => {
 			const {chars,distanceField:df,pages,common:{base,lineHeight:sc,scaleW,scaleH},kernings} = d
 			const s = 1/d.info.size
 			this.rangeFactor = df.distanceRange/sc
 			const b = this.ascend = base/sc
-			const p = pages.map(a => $.Texture.from(new URL(a,src).href, opts, df.fieldType.toLowerCase().endsWith('msdf') ? $.Formats.RGB : $.Formats.RG, mips))
+			const p = pages.map(a => $.Texture.from(new URL(a,src).href, $.ANISOTROPY | $.SMOOTH, df.fieldType.toLowerCase().endsWith('msdf') ? $.Formats.RGB : $.Formats.RG, 1))
 			for(const {first,second,amount} of kernings) super.set(second+first*16777216, amount/s)
 			for(const {id,x,y,width,height,xoffset,yoffset,xadvance,page} of chars) super.set(id, {
 				x: xoffset*s, y: b-(yoffset-baselineOffset+height)*s,

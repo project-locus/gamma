@@ -7,10 +7,10 @@ declare global{
 		const MSDF: Shader
 		/**
 		 * A specialized Shader constructor with the exact same signature, except the following differences within the shader source code:
-		 * - A new function `float field();` returns the current raw SDF value in [0,1]
-		 *    - Always returns 1 for line passes
+		 * - A new function `float field(vec2 uv);` returns the current raw SDF value in [0,1], and `float field_soft(vec2 uv)` returns the alpha value, for use with MTSDFs.
+		 *    - Both always returns 1 for line passes
 		 * - A new parameter `scale` encodes the scale and offset used to transform raw SDF values into alpha values, as specified by the text pass.
-		 *    - Default behavior would look something like `clamp( (field()-.5 + scale.x) * scale.y + .5, 0., 1.)`
+		 *    - Default behavior would look something like `clamp( (field(uv)-.5 + scale.x) * scale.y + .5, 0., 1.)`
 		 * - Other parameters (the "values" of the text/line pass) are accessed via `value0`, `value1`, ... instead of `param0`, `param1`, ...
 		 *    - The first value is `value0`, which is the color by convention
 		 * @param glsl The shader's source code. See `Shader()`
@@ -338,7 +338,7 @@ declare global{
 		 * 
 		 * The font is automatically loaded and resolved, so you can immediately `await` it without doing anything else
 		 * @param src The path/url to load the `.json` file from
-		 * @param atlas The atlas' path/url, relative to the `.json` file. Default: `./atlas.png`
+		 * @param atlas The atlas' path/url, relative to the `.json` file. Default: `./atlas.png`, or a texture object.
 		 * 
 		 * A chlumsky font can be generated a little something like
 		 * ```sh
@@ -347,7 +347,7 @@ declare global{
 		 * where `msdf-atlas-gen` can usually be installed from your package manager, or by compiling and installing the project at the above github repository.
 		 * `pxrange` (The pixel range) affects the `rangeFactor` value. Higher = more blur / font weights possible
 		 */
-		chlumsky(src: string, atlas?: string): Font
+		chlumsky(src: string, atlas?: string | Texture, fixes?: (f: Font) => any): Font
 		/**
 		 * Load an MSDF font in the popular BMFont format (specifically JSON, such as spat out by [this tool](https://msdf-bmfont.donmccurdy.com/))
 		 * 
