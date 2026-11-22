@@ -37,7 +37,7 @@ const renames = {
 }, propRenames = {
 	__proto__: null,
 	_shp: 'S',
-	_setShp: 'S',
+	_setShp: 'M',
 	_mask: 'M',
 	_setv: 'V',
 	arr: '$i',
