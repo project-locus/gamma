@@ -195,20 +195,16 @@ Gamma.gui = $ => {
 		reset(){ this.#click.length = this.#stch.length = 0 }
 		onClick(cb){ this.#click.push(cb); return this }
 		onStateChange(cb){ this.#stch.push(cb); return this }
-		setCursor(cur){ this.cur = cur; return this }
+		setCursor(cur){ this.cursor = cur; return this }
 		rounded(tl=0,tr=tl,bl=tl,br=tl){
-			const l=max(tl,bl),r=max(tr,br)
 			this.hitTest = (x,y,w,h) => {
-			if(x<l){
-				if(x<bl){ if(y<bl){ const x2=x-bl,y2=y-bl; if(x2*x2-y2*y2>bl*bl) return false } }
-				else if(h-y<tl){ const x2=x-tl,y2=h-y-tl; if(x2*x2-y2*y2>tl*tl) return false }
+				const left = x < w*.5, bottom = y < h*.5
+				const r = left ? (bottom ? bl : tl) : (bottom ? br : tr)
+				const dx = r - (left ? x : w-x), dy = r - (bottom ? y : h-y)
+				return dx <= 0 || dy <= 0 || dx*dx+dy*dy <= r*r
 			}
-			if(w-x>r){
-				if(w-x<br){ if(y<br){ const x2=w-x-br,y2=y-br; if(x2*x2-y2*y2>br*br) return false } }
-				else if(h-y<tr){ const x2=x-tr,y2=h-y-tr; if(x2*x2-y2*y2>tr*tr) return false }
-			}
-			return true
-		}; return this }
+			return this
+		}
 		#ptrCapt = -1
 		#onPointerUpdate(ctx, w, h, id, ptr){
 			let p = null
@@ -297,13 +293,13 @@ Gamma.gui = $ => {
 					const x0 = floor(bound.x0*width), rw = ceil(bound.x1*width)-x0
 					const y0 = floor(bound.y0*height), rh = ceil(bound.y1*height)-y0
 					this.#x0 = x0/width; this.#rw = rw/width; this.#y0 = y0/height; this.#rh = rh/height
-					if(!tex||tex.format!=this.format||tex.width!=rw||tex.height!=rh||tex.format!=this.format){
+					if(!tex||tex.format!=this.format||tex.width!=rw||tex.height!=rh||tex.mipmaps!=this.mipmaps){
 						tex?.delete()
 						tex = this.#tex = Texture(rw, rh, 1, o, this.format, this.mipmaps)
 						this.#drw.setTarget(0, tex)
 						this.mipmaps = tex.mipmaps; this.format = tex.format
 					}else this.#drw.clear(0, 0, 0, 0)
-					if(this.#tex.options != o) this.#tex.option = o
+					if(this.#tex.options != o) this.#tex.options = o
 					this.ictx.reset()
 					const irw = 1/this.#rw, irh = 1/this.#rh
 					let ct
@@ -420,7 +416,7 @@ Gamma.gui = $ => {
 		}
 	}
 	class Padding extends GUIElement{
-		constructor(el, b, l, t, r){ this.child = el; this.bottom = b; this.left = l; this.top = t; this.right = r; this.child.addDependency(this.invalidate) }
+		constructor(el, b, l, t, r){ super(); this.child = el; this.bottom = b; this.left = l; this.top = t; this.right = r; this.child.addDependency(this.invalidate) }
 		replace(other){
 			this.child.removeDependency(this.invalidate)
 			void (this.child = other).addDependency(this.invalidate)

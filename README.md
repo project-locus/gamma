@@ -23,10 +23,10 @@ Gamma has two primary goals to set itself apart from existing graphics/multimedi
 <script type="module">
 	import "path/to/gamma/min/monolith.min.js"
 	// Load and import Gamma globally
-	Gamma(globalThis, document.getElementById('canvas'))
+	Gamma(document.getElementById('canvas'), globalThis)
 	// Load Gamma extensions
 	Gamma.font(globalThis)
-	Gamma.util(globalThis)
+	Gamma.utils(globalThis)
 
 	const cat = await Texture.from('./cat.png')
 

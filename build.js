@@ -140,7 +140,7 @@ const postprocessors = {
 }
 
 const pr = []
-let allDefs = '', allDefsGlobal = ''
+let allDefs = 'export type * from "./utils.d.ts"\n', allDefsGlobal = 'export type * from "./utils.d.ts"\n'
 for(const src of fs.readdirSync('docs')){
 	if(src.startsWith('monolith')){
 		pr.push(fsa.unlink('docs/'+src).catch(_ => null))
@@ -149,7 +149,7 @@ for(const src of fs.readdirSync('docs')){
 	if(!src.endsWith('-global.d.ts')) continue
 	const name = src.slice(0, -12)
 	allDefs += `export type * from "./${name}.d.ts"\n`
-	allDefsGlobal += `export type * from './${name}.d.ts'\nexport type * from './${name}-global.d.ts'\n`
+	allDefsGlobal += `export type * from "./${name}.d.ts"\nexport type * from "./${name}-global.d.ts"\n`
 	pr.push(fsa.readFile('docs/'+src).then(code => {
 		code = code.toString()
 		if(name == 'gamma'){

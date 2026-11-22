@@ -1,5 +1,5 @@
 // Integer Contiguous Array
-globalThis.BitField ??= class BitField extends Array{
+{const BitField = class BitField extends Array{
 	constructor(n){
 		super()
 		if(Array.isArray(n)) for(let i=0;i<n.length;i++) this.push(n[i])
@@ -17,12 +17,13 @@ globalThis.BitField ??= class BitField extends Array{
 		b.length = 0
 		let l = buf.v32()
 		while(l--) b.push(buf.i32())
+		return b
 	}
 	/** See npm:nanobuf */
 	static encode(buf, b){
 		const l = b.length
 		buf.v32(l)
-		for(let i=0;i<l;i++) buf.i32(this[i])
+		for(let i=0;i<l;i++) buf.i32(b[i])
 	}
 	static of(...n){
 		const b = new BitField
@@ -250,13 +251,12 @@ globalThis.BitField ??= class BitField extends Array{
 		const u = new Uint8Array(l = (l<<2)+(39-clz32(x)>>3))
 		for(;i<l;i+=4){
 			const y = this[i>>2]
-			u[i] = y; u[i|1] = y>>8; u[i|2] = u>>16; u[i|3] = u>>24
+			u[i] = y; u[i|1] = y>>8; u[i|2] = y>>16; u[i|3] = y>>24
 		}; i -= 4
 		while(i<l) u[i++] = x, x>>=8
 		return u
 	}
 }
-{
 document.addEventListener('pointerlockchange', () => {
 	const ictx = document.pointerLockElement?._ictx
 	if(ictx){
@@ -304,16 +304,16 @@ let gp = true; requestAnimationFrame(pollGamepads)
 window.addEventListener('gamepadconnected', () => { if(!gp) requestAnimationFrame(pollGamepads), gp = true })
 const overrides = {__proto__: null,
 	ContextMenu: 93, Help: 26, Semicolon: 186, Quote: 222, BracketLeft: 219, BracketRight: 221,
-	Backquote: 192, Backslash: 220, Minus: 189, EQUAL: 187, IntlRo: 193, IntlYen: 255, MetaLeft: 91,
+	Backquote: 192, Backslash: 220, Minus: 189, Equal: 187, IntlRo: 193, IntlYen: 255, MetaLeft: 91,
 	MetaRight: 91, PrintScreen: 44, ScrollLock: 145, Pause: 19, F13: 124, F14: 125, F15: 126, F16: 127,
 	F17: 128, F18: 129, F19: 130, F20: 131, F21: 132, F22: 133, F23: 134, F24: 135, NumLock: 144,
 	Clear: 10, NumpadComma: 110, NumpadDecimal: 110, Numpad0: 96, Numpad1: 97, Numpad2: 98, Numpad3: 99,
 	Numpad4: 100, Numpad5: 101, Numpad6: 102, Numpad7: 103, Numpad8: 104, Numpad9: 105
 }
-const MOUSE = Object.freeze({ LEFT: 0, RIGHT: 2, MIDDLE: 1, BACK: 3, FORWARD: 4 })
+const MOUSE = Object.freeze({ LEFT: 0, RIGHT: 1, MIDDLE: 2, BACK: 3, FORWARD: 4, ERASER: 5 })
 const KEY = Object.freeze({
 	A: 65, B: 66, C: 67, D: 68, E: 69, F: 70, G: 71, H: 72, I: 73, J: 74, K: 75, L: 76, M: 77,
-	N: 78, O: 79, P: 80, Q: 81, R: 82, S: 83, can: 84, U: 85, V: 86, W: 87, X: 88, Y: 89, Z: 90,
+	N: 78, O: 79, P: 80, Q: 81, R: 82, S: 83, T: 84, U: 85, V: 86, W: 87, X: 88, Y: 89, Z: 90,
 	NUM_0: 48, NUM_1: 49, NUM_2: 50, NUM_3: 51, NUM_4: 52, NUM_5: 53, NUM_6: 54, NUM_7: 55,
 	NUM_8: 56, NUM_9: 57, SPACE: 32, BACKTICK: 192, TAB: 9, BACK: 8, ENTER: 13,
 	SHIFT: 16, CTRL: 17, ALT: 18, ESC: 27, META: 91, METARIGHT: 93, CAPSLOCK: 20, UP: 38,
@@ -322,7 +322,7 @@ const KEY = Object.freeze({
 	F12: 123, MINUS: 189, EQUAL: 187, BR_LEFT: 219, BR_RIGHT: 221, SEMICOLON: 186, APOS: 222,
 	BACKSLASH: 220, COMMA: 188, DOT: 190, SLASH: 191, PAUSE: 19, PAD_ENTER: 12, CLEAR: 10, HOME: 36, END: 35,
 	PAGE_UP: 33, PAGE_DOWN: 34, INS: 45, DEL: 46, CTX_MENU: 93, NUMPAD_0: 96, NUMPAD_1: 97, NUMPAD_2: 98,
-	PAD_3: 99, NUMPAD_4: 100, NUMPAD_5: 101, NUMPAD_6: 102, NUMPAD_7: 103, NUMPAD_8: 104, NUMPAD_9: 105,
+	NUMPAD_3: 99, NUMPAD_4: 100, NUMPAD_5: 101, NUMPAD_6: 102, NUMPAD_7: 103, NUMPAD_8: 104, NUMPAD_9: 105,
 	PAD_DIV: 111, PAD_MULT: 106, PAD_SUB: 109, PAD_ADD: 107, PAD_DOT: 110, NUM_LOCK: 144,
 	SCROLL_LOCK: 145, HELP: 26, RO: 193, YEN: 255, SYSRQ: 44, PRINT_SCREEN: 44
 })
@@ -476,59 +476,59 @@ class Ictx extends BitField{
 	mouse = {x: 0, y: 0} // accumulated mouse delta
 	cursor = null // "normalized" cursor position. For the main canvas this is usually in [0,1]. This value is always == .pointer(0)
 	firstPointer = null // This value is always the oldest pointer on this context, or null if no pointer are over this context
-	gamepad = null // Primary gamepad. This value is always the oldest gamepad on this context, or null if no gamepads are connected on this context
+	primaryGamepad = null // Primary gamepad. This value is always the oldest gamepad on this context, or null if no gamepads are connected on this context
 	_pointers = new Map()
 	pointer(id){ return (id|=0) >= 0 ? this._pointers.get(id) ?? null : null }
 	iterPointers(cb){ for(const {0:k,1:v} of this._pointers) if(k>=0) cb(k, v) }
 	gamepad(id){ return (id=~id) < 0 ? this._pointers.get(id) ?? null : null }
 	iterGamepads(cb){ for(const {0:k,1:v} of this._pointers) if(k<0) cb(~k, v) }
-	#wcbs = []; #mcbs = []; _rpcbs = []; #rgcbs = []; _rkcbs = []
-	_npcbs = []; _ngcbs = []; _dpcbs = []; _dgcbs = []
-	_kcbs = new Map()
+	#wcbs = []; #mcbs = []; #rpcbs = []; #rgcbs = []; #rkcbs = []
+	#npcbs = []; #ngcbs = []; #dpcbs = []; #dgcbs = []
+	#kcbs = new Map()
 	// Clears listeners
 	reset(){
-		this._kcbs.clear(); this._rkcbs.length = 0
+		this.#kcbs.clear(); this.#rkcbs.length = 0
 		this.#wcbs.length = 0
 		this.#mcbs.length = 0
-		this._npcbs.length = this._dpcbs.length = this._rpcbs.length = 0
-		this._ngcbs.length = this._dgcbs.length = this.#rgcbs.length = 0
+		this.#npcbs.length = this.#dpcbs.length = this.#rpcbs.length = 0
+		this.#ngcbs.length = this.#dgcbs.length = this.#rgcbs.length = 0
 	}
 	// Clears inputs & removes listeners
 	clear(){
-		this.reset(); this.clear()
+		this.reset(); super.clear()
 		this.wheel.x = this.wheel.y = 0
 		this.mouse.x = this.mouse.y = 0
 		this._pointers.clear()
 	}
 	onWheel(fn){ this.#wcbs.push(fn) }
 	onMouse(fn){ this.#mcbs.push(fn) }
-	onPointerUpdate(fn){ this._rpcbs.push(typeof fn == 'function' ? fn : fn.setPointer.bind(fn)) }
+	onPointerUpdate(fn){ this.#rpcbs.push(typeof fn == 'function' ? fn : fn.setPointer.bind(fn)) }
 	onGamepadUpdate(fn){ this.#rgcbs.push(typeof fn == 'function' ? fn : fn.setGamepad.bind(fn)) }
-	onNewPointer(fn){ this._npcbs.push(fn) }
-	onDelPointer(fn){ this._dpcbs.push(fn) }
-	onNewGamepad(fn){ this._ngcbs.push(fn) }
-	onDelGamepad(fn){ this._dgcbs.push(fn) }
+	onNewPointer(fn){ this.#npcbs.push(fn) }
+	onDelPointer(fn){ this.#dpcbs.push(fn) }
+	onNewGamepad(fn){ this.#ngcbs.push(fn) }
+	onDelGamepad(fn){ this.#dgcbs.push(fn) }
 	onKey(key, fn){
 		if(Array.isArray(key)){for(const k of key) this.onKey(k,fn);return}
-		const a = this._kcbs.get(key&=0xffff)
+		const a = this.#kcbs.get(key&=0xffff)
 		if(a) a.push(fn)
-		else this._kcbs.set(key, [fn])
+		else this.#kcbs.set(key, [fn])
 	}
 	onGamepadButton(key, fn){
 		if(Array.isArray(key)){for(const k of key) this.onGamepadButton(k,fn);return}
-		const a = this._kcbs.get(key=~(key&0xffff))
+		const a = this.#kcbs.get(key=~(key&0xffff))
 		if(a) a.push(fn)
-		else this._kcbs.set(key, [fn])
+		else this.#kcbs.set(key, [fn])
 	}
 	onGamepadAxis(axis, fn){
-		if(Array.isArray(axis)){for(const k of axis) this.onGamepadButton(k,fn);return}
-		const a = this._kcbs.get(axis=~(axis&0xffff|0x10000))
+		if(Array.isArray(axis)){for(const k of axis) this.onGamepadAxis(k,fn);return}
+		const a = this.#kcbs.get(axis=~(axis&0xffff|0x10000))
 		if(a) a.push(fn)
-		else this._kcbs.set(axis, [fn])
+		else this.#kcbs.set(axis, [fn])
 	}
 	onKeyPress(key, fn, onRelease = false){ let prev = false; this.onKey(key, (down,k) => (((prev == onRelease) & ((prev = down) === !onRelease)) && fn(k), onRelease)) }
 	onGamepadButtonPress(key, fn, onRelease = false){ let prev = false; this.onGamepadButton(key, (down,k) => (((prev == onRelease) & ((prev = down) === !onRelease)) && fn(k), onRelease)) }
-	onKeyUpdate(fn){ this._rkcbs.push(typeof fn == 'function' ? fn : fn.setKey.bind(fn)) }
+	onKeyUpdate(fn){ this.#rkcbs.push(typeof fn == 'function' ? fn : fn.setKey.bind(fn)) }
 	setKey(key, isDown = false, refire = false){
 		key &= 0xffff
 		let self = this
@@ -536,27 +536,27 @@ class Ictx extends BitField{
 			if(!(isDown ? self.put(key) : self.pop(key))){
 				if(!refire){ self = self.next; continue }
 			}else{
-				const specCbs = self._kcbs.get(key)
+				const specCbs = self.#kcbs.get(key)
 				if(specCbs){
 					let i = specCbs.length
 					while(i--) try{ const v = specCbs[i](isDown, key, self); if(typeof v == 'boolean') isDown = v }catch(e){Promise.reject(e)}
 				}
 			}
-			let i = self._rkcbs.length
-			while(i--) try{ const v = self._rkcbs[i](key, isDown, self); if(typeof v == 'boolean') isDown = v }catch(e){Promise.reject(e)}
+			let i = self.#rkcbs.length
+			while(i--) try{ const v = self.#rkcbs[i](key, isDown, self); if(typeof v == 'boolean') isDown = v }catch(e){Promise.reject(e)}
 			self = self.next
 		}
 		return isDown
 	}
 	refireKey(key){ this.setKey(key, this.has(key), true) }
 	_fireGamepadButtonUpdate(key = 0, isDown = false){
-		const specCbs = this._kcbs.get(~key)
+		const specCbs = this.#kcbs.get(~key)
 		if(!specCbs) return
 		let i = specCbs.length
 		while(i--) try{ const v = specCbs[i](isDown, key, this); if(typeof v == 'boolean') isDown = v }catch(e){Promise.reject(e)}
 	}
 	_fireGamepadAxisUpdate(axis = 0, x = 0, y = 0){
-		const specCbs = this._kcbs.get(~(axis|0x10000))
+		const specCbs = this.#kcbs.get(~(axis|0x10000))
 		if(!specCbs) return
 		let i = specCbs.length
 		while(i--) try{ const v = specCbs[i](x, y, this); if(typeof v == 'object') v ? (x = +v.x, y = +v.y) : (x=y=0) }catch(e){Promise.reject(e)}
@@ -572,32 +572,32 @@ class Ictx extends BitField{
 					if(!id) self.cursor = p
 					self.firstPointer ??= p
 					self._pointers.set(id, p)
-					let i = self._npcbs.length
-					while(i--) try{ const p2 = self._npcbs[i](id, pointer, null, self); if(typeof p2 == 'object') pointer = p2 }catch(e){Promise.reject(e)}
+					let i = self.#npcbs.length
+					while(i--) try{ const p2 = self.#npcbs[i](id, pointer, null, self); if(typeof p2 == 'object') pointer = p2 }catch(e){Promise.reject(e)}
 				}else if(!refire){ self = self.next; continue }
 			}else if(!pointer){
 				self._pointers.delete(id)
 				if(!id) self.cursor = null
-				if(p == this.firstPointer){
-					this.firstPointer = null
-					for(const {0:k,1:v} of this._pointers) if(k>=0){ this.firstPointer = v; break }
+				if(p == self.firstPointer){
+					self.firstPointer = null
+					for(const {0:k,1:v} of self._pointers) if(k>=0){ self.firstPointer = v; break }
 				}
-				let i = self._dpcbs.length
-				while(i--) try{ const p2 = self._dpcbs[i](id, pointer, p, self); if(typeof p2 == 'object') pointer = p2 }catch(e){Promise.reject(e)}
+				let i = self.#dpcbs.length
+				while(i--) try{ const p2 = self.#dpcbs[i](id, pointer, p, self); if(typeof p2 == 'object') pointer = p2 }catch(e){Promise.reject(e)}
 			}else p.update(pointer)
-			let i = self._rpcbs.length
-			while(i--) try{ const p2 = self._rpcbs[i](id, pointer, self); if(typeof p2 == 'object') pointer = p2 }catch(e){Promise.reject(e)}
+			let i = self.#rpcbs.length
+			while(i--) try{ const p2 = self.#rpcbs[i](id, pointer, self); if(typeof p2 == 'object') pointer = p2 }catch(e){Promise.reject(e)}
 			self = self.next
 		}
 		return pointer
 	}
-	#setMainGamepad(g){
-		this.gamepad = g
+	#setPrimaryGamepad(g){
+		this.primaryGamepad = g
 		g.iter(i => this._fireGamepadButtonUpdate(i, true))
 		const a = g._axes
 		for(let i = 0; i < a.length; i++){
 			const n = a[i]
-			if(n.x!==0&&n.y!==0) this._fireGamepadAxisUpdate(i, n.x, n.y)
+			if(n.x!==0||n.y!==0) this._fireGamepadAxisUpdate(i, n.x, n.y)
 		}
 		g._subscribed.push(this)
 	}
@@ -611,34 +611,34 @@ class Ictx extends BitField{
 			if(!g){
 				if(gamepad){
 					g = new GamepadState(gamepad)
-					if(!this.gamepad) this.#setMainGamepad(g)
+					if(!self.primaryGamepad) self.#setPrimaryGamepad(g)
 					self._pointers.set(id, g)
-					let i = self._ngcbs.length
-					while(i--) try{ const p2 = self._ngcbs[i](id, gamepad, null, self); if(typeof p2 == 'object') gamepad = p2 }catch(e){Promise.reject(e)}
+					let i = self.#ngcbs.length
+					while(i--) try{ const p2 = self.#ngcbs[i](~id, gamepad, null, self); if(typeof p2 == 'object') gamepad = p2 }catch(e){Promise.reject(e)}
 				}else if(!refire){ self = self.next; continue }
 			}else if(!gamepad){
 				self._pointers.delete(id)
-				if(g == this.gamepad){
-					this.gamepad = null
+				if(g == self.primaryGamepad){
+					self.primaryGamepad = null
 					const arr = g._subscribed
-					let i = arr.indexOf(this)
+					let i = arr.indexOf(self)
 					if(i >= 0){ // safeguard
 						while(i<arr.length) arr[i] = arr[++i]
 						arr.pop()
 					}
-					g.iter(i => this._fireGamepadButtonUpdate(i, false))
+					g.iter(i => self._fireGamepadButtonUpdate(i, false))
 					const a = g._axes
 					for(let i = 0; i < a.length; i++){
 						const n = a[i]
-						if(n.x!==0&&n.y!==0) this._fireGamepadAxisUpdate(i, 0, 0)
+						if(n.x!==0||n.y!==0) self._fireGamepadAxisUpdate(i, 0, 0)
 					}
-					for(const {0:k,1:v} of this._pointers) if(k<0){ this.#setMainGamepad(v); break }
+					for(const {0:k,1:v} of self._pointers) if(k<0){ self.#setPrimaryGamepad(v); break }
 				}
-				let i = self._dgcbs.length
-				while(i--) try{ const p2 = self._dgcbs[i](id, gamepad, g, self); if(typeof p2 == 'object') gamepad = p2 }catch(e){Promise.reject(e)}
+				let i = self.#dgcbs.length
+				while(i--) try{ const p2 = self.#dgcbs[i](~id, gamepad, g, self); if(typeof p2 == 'object') gamepad = p2 }catch(e){Promise.reject(e)}
 			}else g.update(gamepad)
-			let i = this.#rgcbs.length
-			while(i--) try{ const p2 = this.#rgcbs[i](id, gamepad, self); if(typeof p2 == 'object') gamepad = p2 }catch(e){Promise.reject(e)}
+			let i = self.#rgcbs.length
+			while(i--) try{ const p2 = self.#rgcbs[i](~id, gamepad, self); if(typeof p2 == 'object') gamepad = p2 }catch(e){Promise.reject(e)}
 			self = self.next
 		}
 		return gamepad
@@ -649,9 +649,9 @@ class Ictx extends BitField{
 		if(typeof dx == 'object') dy = +dx.y, dx = +dx.x
 		let self = this
 		while(self){
-			this.wheel.x += dx; this.wheel.y += dy
-			let i = this.#wcbs.length
-			while(i--) try{ const p = this.#wcbs[i](dx, dy, self); if(typeof p == 'object') p ? (dx = +p.x, dy = +p.y) : (dx=dy=0) }catch(e){Promise.reject(e)}
+			self.wheel.x += dx; self.wheel.y += dy
+			let i = self.#wcbs.length
+			while(i--) try{ const p = self.#wcbs[i](dx, dy, self); if(typeof p == 'object') p ? (dx = +p.x, dy = +p.y) : (dx=dy=0) }catch(e){Promise.reject(e)}
 			self = self.next
 		}
 		return {x: dx, y: dy}
@@ -683,13 +683,14 @@ class Ictx extends BitField{
 			self = self.next
 		}
 	}
-	onOrientation(fn){ this._bcbs.push(fn) }
+	onOrientation(fn){ this._ocbs.push(fn) }
 }
 
 let ptrlockPointer = null, ptrlockIctx = null
 const pointers = []
 Gamma.input = ($, can = $.canvas) => {
 	if(can._ictx) return
+	$.BitField = BitField
 	$.MOUSE = MOUSE
 	$.KEY = KEY
 	$.GAMEPAD = GAMEPAD
@@ -723,11 +724,11 @@ Gamma.input = ($, can = $.canvas) => {
 	can.addEventListener('mousedown', e => {
 		if(document.activeElement?._ictx != ictx) can.focus()
 		e.preventDefault()
-		ictx.setKey(e.button, true)
+		ictx.setKey((0x76543120>>(e.button<<2))&7, true)
 	})
 	can.addEventListener('mouseup', e => {
 		e.preventDefault()
-		ictx.setKey(e.button, false)
+		ictx.setKey((0x76543120>>(e.button<<2))&7, false)
 	})
 	can.addEventListener('contextmenu', e => e.preventDefault())
 	can.addEventListener('wheel', e => {
@@ -875,7 +876,7 @@ Gamma.input = ($, can = $.canvas) => {
 		bB = n*det, bE = (a*i-c*g)*det, bH = (b*g-a*h)*det
 		bC = o*det, bF = (c*d-a*f)*det, bI = (a*e-b*d)*det
 	})
-	onpointerup = () => {DeviceOrientationEvent.requestPermission?.(), DeviceMotionEvent.requestPermission?.()}
+	window.addEventListener('pointerup', () => { DeviceOrientationEvent.requestPermission?.(), DeviceMotionEvent.requestPermission?.() }, {once: true})
 	let lastMotion = NaN, lmx = 0, lmy = 0, lmz = 0
 	window.addEventListener('devicemotion', ev => {
 		let {x,y,z} = ev.acceleration, dt = -.001*(lastMotion-(lastMotion=performance.now()))

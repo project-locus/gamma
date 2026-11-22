@@ -335,11 +335,11 @@ ictx.onKey(KEY.NUM_0, isDown => {
 	}
 })
 render = () => {
-	ctxSupersample = ictx.has(KEY.NUM_9)||ictx.gamepad?.has(GAMEPAD.LEFT) ? 0.125/devicePixelRatio : 1 + (devicePixelRatio < 2)
+	ctxSupersample = ictx.has(KEY.NUM_9)||ictx.primaryGamepad?.has(GAMEPAD.LEFT) ? 0.125/devicePixelRatio : 1 + (devicePixelRatio < 2)
 	if(selectedShader == -1) sfx = 0
 	for(let k = 0; k < 10; k++)
 		if(ictx.has(KEY.NUM_0 + k)){ selectedShader = -1; sfx = k; break }
-	if(ictx.has(KEY.NUM_8) || ictx.gamepad?.has(GAMEPAD.UP)) targetFov = min(targetFov / SQRT2**dt, 15)
+	if(ictx.has(KEY.NUM_8) || ictx.primaryGamepad?.has(GAMEPAD.UP)) targetFov = min(targetFov / SQRT2**dt, 15)
 	else targetFov = 90
 	FOV += (targetFov - FOV) * min(1, dt*20)
 	
@@ -360,13 +360,13 @@ render = () => {
 	const {width: w, height: h} = getGUIDimensions(20)
 	scene.reset(1/w, 0, 0, 1/h, .5, .5)
 
-	let ctx3 = scene.sub3dPersp((ictx.has(KEY.NUM_7)||(ictx.gamepad?.has(GAMEPAD.DOWN)??false))*.4, 1)
+	let ctx3 = scene.sub3dPersp((ictx.has(KEY.NUM_7)||(ictx.primaryGamepad?.has(GAMEPAD.DOWN)??false))*.4, 1)
 	const sc = .16/tan(FOV * PI/360)
 	// Scale FOV without changing depth values (used for fog)
 	ctx3.scale(sc, sc, .01)
 	{
-		let rotRight = (ictx.gamepad?.axis(GAMEPAD.RIGHT_STICK)?.x??0)*20
-		let rotUp = (ictx.gamepad?.axis(GAMEPAD.RIGHT_STICK)?.y??0)*20
+		let rotRight = (ictx.primaryGamepad?.axis(GAMEPAD.RIGHT_STICK)?.x??0)*20
+		let rotUp = (ictx.primaryGamepad?.axis(GAMEPAD.RIGHT_STICK)?.y??0)*20
 		if(pointerLock) rotRight += ictx.mouse.x, rotUp += ictx.mouse.y
 		look.x = (look.x + rotRight*.00003*FOV) % PI2
 		look.y = clamp(look.y + rotUp*.00003*FOV, PI*-.5, PI*.5)

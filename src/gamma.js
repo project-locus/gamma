@@ -884,7 +884,7 @@ class Tex{
 	}
 	layer(l = this.l){ return new Tex(this.t, this.x, this.y, this.w, this.h, l) }
 	#then(r, j){
-		if(typeof r != 'function') r = Function.prototype
+		if(typeof r != 'function') r = e=>{}
 		if(!this.t.src) return void r(this)
 		if(!this.t._tex) Tex.load(this.t)
 		this.t.src.push(r, j, this)
