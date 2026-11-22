@@ -169,7 +169,7 @@ Gamma.gui = $ => {
 		width = 0; height = 0
 		draw(ctx, _, w, h){
 			if(!this.texture) return void ctx.drawRect(0, 0, w, h, this.tint)
-			if(!this.texture.loaded) return void this.texture.then?.(this.invalidate)
+			if(!this.texture.ready) return void this.texture.then?.(this.invalidate)
 			let {width, height} = this.texture
 			let {size, pos} = this
 			if(typeof size == 'function') size = size(w/width, h/height)

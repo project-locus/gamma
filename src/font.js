@@ -1147,7 +1147,7 @@ $.Shader.sdf = (src, o={}) => {
 				width: advance, tex: img.sub(ab.left/width,ab.bottom/height,(ab.right-ab.left)/width,(ab.top-ab.bottom)/height)
 			} : { x: 0, y: 0, w: 0, h: 0, width: advance, tex: null })
 			fixes?.(this)
-			img.then(() => this.done())
+			img.ready ? this.done() : img.then(() => this.done())
 		}, this.error.bind(this)); return this}
 		bmfont(src, baselineOffset=0, fixes = $.Font.defaultFixes){ fetch(src).then(a => (src=a.url,a.json())).then(d => {
 			const {chars,distanceField:df,pages,common:{base,lineHeight:sc,scaleW,scaleH},kernings} = d

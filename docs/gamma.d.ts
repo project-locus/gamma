@@ -546,12 +546,14 @@ namespace GammaInstance{
 		 * 
 		 * @param width Width of surface, in logical pixels
 		 * @param height Height of surface, in logical pixels
-		 * @param format Most hardware will only support `Formats.RGBA8`, `Formats.RGB565`, `Formats.RGBA4`, `Formats.RGB5_A1`, `Formats.DEPTH32F`, `Formats.DEPTH32F_STENCIL`, and `Formats.STENCIL`
-		 * @param msaa How many samples per logical pixel to allocate. This is a hint; the actual value may be rounded or clamped. Set to a high value (e.g, 256) to use as many samples as available
-		 * 
+		 * @param msaa How many samples per logical pixel to allocate. This is a hint; the actual value may be rounded or clamped. Set to a high value (e.g, 256) to use as many samples as available. Default: `1` (no multisampling)
+		 * @param format Most hardware will only support `Formats.RGBA8`, `Formats.RGB565`, `Formats.RGBA4`, `Formats.RGB5_A1`, `Formats.DEPTH32F`, `Formats.DEPTH32F_STENCIL`, and `Formats.STENCIL`. Default: `Formats.RGBA`
+		 *
+		 * A multisampled surface cannot be drawn with directly. To use its contents, `paste()` it into a texture of the same format (see `Texture.paste()`), which resolves the samples
+		 *
 		 * @performance This method performs the allocation of the target, which may use a lot of video memory, dependent on the MSAA value requested. Drawing to a multisampled target will not perform more shader invocation but may slow down rendering due to slower rasterization and greatly increased video memory access
 		 */
-		function Surface(width: number, height: number, msaa: number, format: Formats): Surface
+		function Surface(width: number, height: number, msaa?: number, format?: Formats): Surface
 		
 		/**
 		 * Create an image-backed texture. This texture is lazily loaded from the source(s)
@@ -610,7 +612,7 @@ namespace GammaInstance{
 		 * Whether the image-backed texture is loaded
 		 * Always true for non-image-backed textures
 		 */
-		readonly loaded: boolean
+		readonly ready: boolean
 
 		/**
 		 * Whether the image-backed texture is loaded. Reading this property will cause the texture to be loaded in the background if it isn't already
@@ -655,10 +657,10 @@ namespace GammaInstance{
 
 		/**
 		 * Trigger an image-backed texture to be loaded
-		 * 
-		 * If the image is already loaded or loading (i.e `this.loaded || this.waiting`), this is a no-op
-		 * 
-		 * Otherwise, `waiting` immediately becomes true, then, once the image has finished loading and the texture object has been populated, `loaded` will become true and `waiting` will become false
+		 *
+		 * If the image is already loaded or loading, this is a no-op. Otherwise, loading starts in the background, and once the image has finished loading and the texture object has been populated, `loaded` will become true
+		 *
+		 * Image-backed textures are also thenable (see `Texture.from()`): `await`ing one triggers a load if needed, and resolves once it has loaded
 		 */
 		load(): void
 
@@ -706,7 +708,7 @@ namespace GammaInstance{
 
 		/**
 		 * Copy data from one texture (tex) object to another (this)
-		 * @param tex The source to copy data from
+		 * @param tex The source to copy data from. It must have the same format as this texture and be loaded, and cannot be backed by the same texture data as this one; otherwise nothing is copied
 		 * @param x Left edge of area to paste, in pixels. Default: 0
 		 * @param y Bottom edge of area to paste, in pixels. Default: 0
 		 * @param layer First layer of area to paste. Default: 0
@@ -726,16 +728,33 @@ namespace GammaInstance{
 
 		/**
 		 * Copy data from an image-like (img) object to another (this)
-		 * @param img The source to copy data from
+		 * @param img The source to copy data from. URLs and `Blob`s are fetched and decoded first, so the paste happens asynchronously
 		 * @param x Left edge of area to paste, in pixels. Default: 0
 		 * @param y Bottom edge of area to paste, in pixels. Default: 0
 		 * @param layer First layer of area to paste. Default: 0
 		 * @param dstMip Which mipmap to write data to. Default: 0
-		 * @returns `this`, or `null` if this is an image-backed texture that is not loaded yet
+		 * @returns `this` (or a promise resolving to `this` once the paste is done, for URL and `Blob` sources), or `null` if this is an image-backed texture that is not loaded yet
 		 * 
 		 * @performance This method performs an upload to the GPU, which is primarily bandwidth-bound for typical-size textures. Extra preprocessing may be done for certain source types (e.g <img> elements), which may be CPU-bound. It is recommended to use ImageBitmap sources where possible (with the correct options provided by Gamma.bitmapOpts), as they are GPU-ready by design. It may also cause partial pipeline stalls if following draw operations depend on the texture data but have to wait for the upload to finish, however this is mostly mitigated with modern drivers. If the texture was recently used then this will create a light draw boundary (See `Drawable2D.draw()` for more info)
 		 */
+		paste(img: string | Blob, x?: number, y?: number, layer?: number, dstMip?: number): this extends Promise<Texture> ? Promise<this>|null : Promise<this>
 		paste(img: ImageSource, x?: number, y?: number, layer?: number, dstMip?: number): this extends Promise<Texture> ? this|null : this
+		/**
+		 * Copy data from a (possibly multisampled) `Texture.Surface` to this texture, resolving its samples. The surface must have the same format as this texture
+		 * @param surface The surface to copy data from
+		 * @param x Left edge of area to paste, in pixels. Default: 0
+		 * @param y Bottom edge of area to paste, in pixels. Default: 0
+		 * @param layer Layer to paste into. Default: 0
+		 * @param dstMip Which mipmap to write data to. Default: 0
+		 * @param srcX Left edge of area to copy data from in the surface, in pixels. Default: 0
+		 * @param srcY Bottom edge of area to copy data from in the surface, in pixels. Default: 0
+		 * @param srcWidth Width of area to copy in pixels. Defaults to the surface's width
+		 * @param srcHeight Height of area to copy in pixels. Defaults to the surface's height
+		 * @returns `this`, or `null` if this is an image-backed texture that is not loaded yet
+		 *
+		 * @performance This method performs a GPU-GPU copy. If the texture was recently used then this will create a light draw boundary (See `Drawable2D.draw()` for more info)
+		 */
+		paste(surface: Texture.Surface, x?: number, y?: number, layer?: number, dstMip?: number, srcX?: number, srcY?: number, srcWidth?: number, srcHeight?: number): this extends Promise<Texture> ? this|null : this
 
 		/**
 		 * Copy data from memory to this texture
@@ -747,8 +766,8 @@ namespace GammaInstance{
 		 * @param height Height of area to paste in pixels. Defaults to this texture's height
 		 * @param layers Number of layers to paste. Defaults to this texture's number of layers
 		 * @param mip Which mipmap to write data to. Default: 0
-		 * @returns `this`, or `null` if this is an image-backed texture that is not loaded yet
-		 * 
+		 * @returns `this`. If this is an image-backed texture that is not loaded yet, nothing is pasted
+		 *
 		 * @performance This method performs an upload to the GPU, which is primarily bandwidth-bound for typical-size textures. It may also cause partial pipeline stalls if following draw operations depend on the texture data but have to wait for the upload to finish, however this is mostly mitigated with modern drivers. If the texture was recently used then this will create a light draw boundary (See `Drawable2D.draw()` for more info)
 		 * 
 		 * | For format                        | Pass                               | of length          |
@@ -762,7 +781,7 @@ namespace GammaInstance{
 		 * | R16F, RG16F, RGB16F, RGBA16F      | `Uint16Array` / `Float16Array`     | `w*h*d * channels` |
 		 * | R32F, RG32F, RGB32F, RGBA32F      | `Float32Array`                     | `w*h*d * channels` |
 		 */
-		pasteData(data: Uint8Array | Uint8ClampedArray | Uint16Array | Uint32Array | Float16Array | Float32Array, x?: number, y?: number, layer?: number, width?: number, height?: number, layers?: number, mip?: number): this extends Promise<Texture> ? this|null : this
+		pasteData(data: Uint8Array | Uint8ClampedArray | Uint16Array | Uint32Array | Float16Array | Float32Array, x?: number, y?: number, layer?: number, width?: number, height?: number, layers?: number, mip?: number): this
 
 		/**
 		 * Copy data from this texture to CPU memory, asynchronously
@@ -836,13 +855,13 @@ namespace GammaInstance{
 	/** See `Texture.options` */ const ANISOTROPY = 128
 
 	/**
-	 * Create a drawable context optionally with a stencil buffer
+	 * Create a drawable context, with no targets
 	 * 
 	 * Conceptually, a `Drawable` is an object describing where and how to draw, its methods being used to actually draw. The 'target' behind a `Drawable` can be the canvas (as is the case for the main target), or one or more texture layer / multisampled buffer (see `Texture.Surface`). You can add up to `Drawable.MAX_TARGETS` targets, differentiated by their IDs (0, 1, 2, ...)
 	 * 
-	 * To actually add targets to a drawable, see `Drawable.setTarget()`.
+	 * To actually add targets to a drawable, see `Drawable.setTarget()` and `Drawable.auto()`. A depth and/or stencil buffer is added the same way, as a target in slot `-1`
 	 * 
-	 * @performance This method itself is mostly CPU-only logic (a bit more expensive if a stencil buffer is allocated). However, using many drawables, especially interlaced, will have severe performance implications. See `Drawable2D.draw()` for more info
+	 * @performance This method itself is mostly CPU-only logic. However, using many drawables, especially interlaced, will have severe performance implications. See `Drawable2D.draw()` for more info
 	 */
 	function Drawable(): Drawable2D
 	namespace Drawable{
@@ -921,6 +940,19 @@ namespace GammaInstance{
 		 * @performance This method is CPU-arithmetic, very fast and usually inlined
 		 */
 		transform(a: number, b: number, c: number, d: number, e?: number, f?: number): void
+		transform(matrix: { a: number, b: number, c: number, d: number, e?: number, f?: number }): void
+		/**
+		 * Apply the inverse of a transformation matrix (see `.transform()`). `t.transform(m); t.transformInverse(m)` leaves `t` unchanged
+		 * @performance This method is CPU-arithmetic, very fast and usually inlined, however it involves a division
+		 */
+		transformInverse(a: number, b: number, c: number, d: number, e?: number, f?: number): void
+		transformInverse(matrix: { a: number, b: number, c: number, d: number, e?: number, f?: number }): void
+		/**
+		 * Find the screen-space bounding box of a polygon after it is transformed, clipped to the visible area. Coordinates are normalized, i.e (0,0) is the bottom left of the target and (1,1) the top right
+		 * @param loop The polygon's points, in order. Default: the unit square (0,0)-(1,1)
+		 * @returns The bounding box, or `null` if the polygon is entirely off-screen
+		 */
+		loopBoundary(loop?: vec2[] | null): { x0: number, y0: number, x1: number, y1: number } | null
 		/**
 		 * Rotate all following draw operations, clockwise (or negative for anticlockwise)
 		 * @performance This method is CPU-arithmetic, fast and usually inlined, however it uses `sin()` and `cos()`
@@ -1080,6 +1112,19 @@ namespace GammaInstance{
 		 * @performance This method is CPU-arithmetic, very fast and usually inlined
 		 */
 		transform(a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j?: number, k?: number, l?: number): void
+		transform(matrix: { a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j?: number, k?: number, l?: number }): void
+		/**
+		 * Apply the inverse of a transformation matrix (see `.transform()`). `t.transform(m); t.transformInverse(m)` leaves `t` unchanged
+		 * @performance This method is CPU-arithmetic, fast and usually inlined, however it involves a 3x3 matrix inversion
+		 */
+		transformInverse(a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j?: number, k?: number, l?: number): void
+		transformInverse(matrix: { a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j?: number, k?: number, l?: number }): void
+		/**
+		 * Find the screen-space bounding box of a polygon after it is transformed, clipped to the visible area. Coordinates are normalized, i.e (0,0) is the bottom left of the target and (1,1) the top right
+		 * @param loop The polygon's points, in order
+		 * @returns The bounding box, or `null` if the polygon is entirely off-screen
+		 */
+		loopBoundary(loop: vec3[]): { x0: number, y0: number, x1: number, y1: number } | null
 		/**
 		 * Rotate all following draw operations, clockwise (or negative for anticlockwise) when seen from Z-, about the Z axis (i.e, the X and Y basis vectors are changed but all Z remain unchanged). For example, a vector facing up, after a PI/2 (90deg) rotation, will be facing right ("newX = oldY", hence XY)
 		 * @performance This method is CPU-arithmetic, fast and usually inlined, however it uses `sin()` and `cos()`
@@ -1200,12 +1245,18 @@ namespace GammaInstance{
 		 */
 		perspectiveOrigin(): vec3
 		/**
-		 * Returns a normalized metric which, when transformed, connects the perspective origin to a point in sreen space
-		 * 
-		 * Since this is a non-perspective transformations, this method doesn't make sense, and the returned value is always `vec3(NaN, NaN, NaN)`
+		 * Returns a normalized metric pointing "into the screen", i.e the direction that doesn't move on screen when transformed. Since this is an orthographic (non-perspective) transformation, all rays are parallel, so the result is the same for every screen point
+		 *
+		 * If `origin` is passed, it is modified to contain a point on the ray that lands on the screen point (see `.unproject()`), making `origin + n*ray` all the points that land there
 		 */
 		perspectiveRay(x: number, y: number, origin?: vec3): vec3
 		perspectiveRay(xy: vec2, origin?: vec3): vec3
+		/**
+		 * Un-transform a point in screen space `(x, y)`. Since a whole line of points lands on each screen point (see `.perspectiveRay()`), this returns the one closest to the local origin `(0, 0, 0)`
+		 * @performance This method is CPU-arithmetic, very fast and usually inlined, however it involves a division
+		 */
+		unproject(x: number, y: number): vec3
+		unproject(xy: vec2): vec3
 	}
 	interface Transformable3Dto3D{
 		/**
@@ -1218,8 +1269,8 @@ namespace GammaInstance{
 		 * Inverse-transform a point `(x, y, z)` by the current transformation matrix, returning the original point as an object `{x, y, z}`
 		 * @performance This method is CPU-arithmetic, very fast and usually inlined, however it involves a division
 		 */
-		pointFrom(x: number, y: number, z: number): never
-		pointFrom(xyz: vec3): never
+		pointFrom(x: number, y: number, z: number): vec3
+		pointFrom(xyz: vec3): vec3
 		/**
 		 * Transform a metric `(dx, dy, dz)` by the current transformation matrix, returning the transformed metric as an object `{x, y, z}`. Unlike points, metrics do not observe the matrix's translation component
 		 * @performance This method is CPU-arithmetic, very fast and usually inlined
@@ -1230,8 +1281,8 @@ namespace GammaInstance{
 		 * Inverse-transform a metric `(dx, dy, dz)` by the current transformation matrix, returning the original metric as an object `{x, y, z}`. Unlike points, metrics do not observe the matrix's translation component
 		 * @performance This method is CPU-arithmetic, very fast and usually inlined, however it involves a division
 		 */
-		metricFrom(x: number, y: number, z: number): never
-		metricFrom(xyz: vec3): never
+		metricFrom(x: number, y: number, z: number): vec3
+		metricFrom(xyz: vec3): vec3
 		/**
 		 * Reset the 3D transform to a matrix defined by the 12 values, or the default matrix (where (0,0,1) is the bottom-left and (1,1,1) is the top right, and the vanishing point, which is in the Z+ direction, is at the bottom left)
 		 * 
@@ -1279,11 +1330,33 @@ namespace GammaInstance{
 		setTarget(id: number, target: Texture.Surface): void
 		setTarget(id: number, target?: null): void
 		/**
-		 * Clear all currently bound targets (see `Drawable.setTarget()`)
-		 * 
-		 * Additionally, any stencil buffer's memory is freed (beware, manually unsetting every target via `.setTarget(id, null)` will not do this!)
+		 * Remove all currently bound targets, including the depth/stencil target (see `Drawable.setTarget()`)
+		 *
+		 * The textures/surfaces themselves are not deleted
 		 */
 		clearTargets(): void
+		/**
+		 * Make sure this drawable has targets of the given size, sample count and formats, (re)creating them only if anything changed. Useful to keep an offscreen buffer the same size as the canvas, by calling this every frame
+		 *
+		 * Existing targets that no longer match are deleted. New targets are created with `Texture.Surface()` if `msaa` is positive, or with `Texture()` (with as many mipmaps as possible) otherwise
+		 *
+		 * **This method assumes it manages all of this drawable's targets.** Do not call it while any targets are bound manually via `.setTarget()`, as they may be deleted or replaced
+		 * @param width Width of the targets in pixels
+		 * @param height Height of the targets in pixels
+		 * @param msaa Samples per pixel for the created surfaces, or `0` to create textures instead. Default: `0`
+		 * @param formats The format of each target, starting from slot `-1` (the depth/stencil slot). Pass `null` for a slot to leave it empty
+		 * @returns The targets, as an array starting from slot `0`, with the depth/stencil target at index `-1` (`null` for empty slots)
+		 * @example
+		 * ```js
+		 * // A color target in slot 0, with a depth buffer in slot -1
+		 * const [color] = drw.auto(canvas.width, canvas.height, 4, Formats.DEPTH32F, Formats.RGBA8)
+		 * ```
+		 */
+		auto(width: number, height: number, msaa?: number, ...formats: (Formats | null)[]): (Texture | Texture.Surface | null)[]
+		/**
+		 * Free this drawable's resources. Its targets are not deleted. It is invalid to use the drawable (or any of its sub-contexts) beyond this point
+		 */
+		delete(): void
 
 		/**
 		 * Drawing masks. This is a bitmask with any the following:
@@ -1299,8 +1372,12 @@ namespace GammaInstance{
 		 * - `UNSET` (64): Set the stencil value to zero where drawing would occur. The value is updated even if IF_SET/IF_UNSET prevent drawing. However, a `discard` in the shader will prevent the update
 		 * - `FLIP` (192): Flip the stencil value (0 becomes 1, 1 becomes 0) where drawing would occur. The value is updated even if IF_SET/IF_UNSET prevent drawing. However, a `discard` in the shader will prevent the update
 		 * - `NEVER` (48): Never draw (equivalent to `IF_SET | IF_UNSET`). Useful for updating the stencil buffer without drawing anything
+		 * - `DEPTH` (256): Write the depth of drawn content to the depth buffer
+		 * - `IF_CLOSER` (512): Only draw content closer than the existing depth value
+		 * - `IF_FURTHER` (1024): Only draw content further than the existing depth value
+		 * - `DEPTH_NEVER` (1536): Never draw (equivalent to `IF_CLOSER | IF_FURTHER`), based on depth
 		 * 
-		 * Note that the stencil operations (IF_SET/IF_UNSET/SET/UNSET/FLIP) only have an effect if the drawable has a stencil buffer (i.e was created with the `stencil` parameter set to true, or had its `hasStencil` property set to true). Otherwise, the stencil value is always treated as 0 and no operations are performed
+		 * Note that the stencil operations (IF_SET/IF_UNSET/SET/UNSET/FLIP) only have an effect if the drawable has a stencil buffer (i.e a `Formats.STENCIL` or `Formats.DEPTH32F_STENCIL` target in slot `-1`, or, for the main `ctx`, the `Gamma.STENCIL` flag). Otherwise, the stencil value is always treated as 0 and no operations are performed. Likewise, the depth operations (DEPTH/IF_CLOSER/IF_FURTHER) only have an effect with a depth buffer (`Formats.DEPTH32F` or `Formats.DEPTH32F_STENCIL` in slot `-1`)
 		 * 
 		 * By default, all color channels are enabled and no stencil operations are performed (`R | G | B | A`)
 		 * 
@@ -1315,13 +1392,15 @@ namespace GammaInstance{
 		blend: Blend
 		/**
 		 * Clear the whole draw target to a solid color. This method is affected by `.mask & RGBA`, and `.mask & DEPTH`
-		 * 
+		 *
+		 * All color components are optional: `clear()` clears to transparent black, and `clear(v)` clears all 4 channels to `v`. Missing `g`/`b`/`a` values default to `r`
+		 *
 		 * @param depth The depth value to clear to. Default: `Infinity`
 		 * @param stencil Whether to also clear the stencil buffer to zero. Default: `true`
 		 * 
 		 * @performance Will create a light draw boundary (See `Drawable2D.draw()` for more info)
 		 */
-		clear(r: number, g: number, b: number, a: number, depth?: number, stencil?: boolean): void
+		clear(r?: number, g?: number, b?: number, a?: number, depth?: number, stencil?: boolean): void
 		clear(rgba: vec4, depth?: number, stencil?: boolean): void
 		/**
 		 * Clear the whole stencil buffer to 0
@@ -1345,7 +1424,7 @@ namespace GammaInstance{
 		 **/
 		subPersp(): Drawable2DPerspective
 		/**
-		 * Create a subcontext with a third dimension, which is capable of drawing 3D geometries using the family of 3D transformations. The 3D content is projected onto the current 2D plane using an orthographic projection. For a perspective projection, see `.sub3dPersp()`
+		 * Create a subcontext with a third dimension, which is capable of drawing 3D geometries using the family of 3D transformations. The 3D content is projected onto the current 2D plane using an orthographic projection. For a perspective projection, see `.sub3dPersp()`. The new context starts with `Geometry3D.CUBE` and `Shader.COLOR_3D_XZ`
 		 * @performance This method is CPU-logic, fast and usually inlined
 		 **/
 		sub3d(): this extends Transformable2Dto3D ? Drawable3DPerspective : Drawable3D
@@ -1355,12 +1434,14 @@ namespace GammaInstance{
 		 * Perspective transformation means that the Z component acts as a "scaling" factor for the X and Y components. By default, content drawn at (x,y,z) will appear at (x, y)/z. This can be changed with the `zBase` and `zScale` parameters. Content will then be drawn at (x, y)/(z*zScale + zBase). For example, `.sub3dPersp(0, 1)`, the default, gives a typical perspective transform while `.sub3dPersp(1, 0)` gives an orthographic transform (constant scaling)
 		 * 
 		 * Note that after you have applied any rotations, the "Z" direction controlling the scaling factor will also change, such that the vanishing point always appears where you expect it to.
+		 *
+		 * The new context starts with `Geometry3D.CUBE` and `Shader.COLOR_3D_XZ`
 		 * @performance This method is CPU-logic, fast and usually inlined
 		 **/
 		sub3dPersp(zBase?: number, zScale?: number): Drawable3DPerspective
 
 		/**
-		 * The shader to be used by all drawing operations. See `Shader()` for more info on custom shaders. Can be also set to `null` to use `Shader.DEFAULT`, however reading the property never returns null
+		 * The shader to be used by all drawing operations. See `Shader()` for more info on custom shaders. Can be also set to `null` (or a 3D shader) to use `Shader.DEFAULT`, however reading the property never returns null
 		 * @performance Changing this value will create a medium draw boundary (See `Drawable2D.draw()` for more info)
 		*/
 		shader: Shader2D
@@ -1375,6 +1456,15 @@ namespace GammaInstance{
 		 * @performance This method is CPU-arithmetic, fast and usually inlined, however it uses a square root
 		 */
 		pixelRatio(): number
+		/**
+		 * Returns a copy of this drawable's current transform, as a plain transformable (`Transform2D` or `Transform2D.to3D`), with none of the drawable's other state. Useful to remember where something was drawn, e.g for hit-testing with `.unproject()` later
+		 * @performance This method is CPU-logic, fast and usually inlined
+		 */
+		getTransform(): Transformable2D & (this extends Transformable2Dto3D ? Transformable2Dto3D : Transformable2Dto2D)
+		/**
+		 * Set the transform to a matrix defined by the values (see `.reset()`), or the default matrix. Unlike `.reset()`, the rest of the state (shader, blend, mask, geometry) is left unchanged
+		 */
+		setTransform(a?: number, b?: number, c?: number, d?: number, e?: number, f?: number, g?: number, h?: number, i?: number): void
 
 		/**
 		 * Draw a sprite at `(0,0)` to `(1,1)`
@@ -1490,12 +1580,12 @@ namespace GammaInstance{
 	}
 	interface _Drawable3D extends Drawable, Transformable3D{
 		/**
-		 * The shader to be used by all drawing operations. See `Shader()` for more info on custom shaders. Can be also set to `null` to use `Shader.DEFAULT`, however reading the property never returns null
+		 * The shader to be used by all drawing operations. See `Shader()` for more info on custom shaders. Can be also set to `null` (or a 2D shader) to use `Shader.COLOR_3D_XZ`, however reading the property never returns null
 		 * @performance Changing this value will create a medium draw boundary (See `Drawable2D.draw()` for more info)
 		*/
 		shader: Shader3D
 		/**
-		 * The geometry to be used by all drawing operations. See `Geometry2D()` for more info on custom sprite geometries. Can be also set to `null` to use `Geometry2D.SQUARE`, however reading the property never returns null
+		 * The geometry to be used by all drawing operations. See `Geometry3D()` for more info on custom geometries. Can be also set to `null` to use `Geometry3D.CUBE`, however reading the property never returns null
 		 * @performance Changing this value will create a light-to-medium draw boundary (See `Drawable2D.draw()` for more info)
 		 */
 		geometry: Geometry3D
@@ -1528,6 +1618,15 @@ namespace GammaInstance{
 		 * @performance This method is CPU-logic, fast and usually inlined
 		 **/
 		subPersp(zBase?: number, zScale?: number): Drawable3DPerspective
+		/**
+		 * Returns a copy of this drawable's current transform, as a plain transformable (`Transform3D` or `Transform3D.to2D`), with none of the drawable's other state
+		 * @performance This method is CPU-logic, fast and usually inlined
+		 */
+		getTransform(): Transformable3D & (this extends Transformable3Dto3D ? Transformable3Dto3D : Transformable3Dto2D)
+		/**
+		 * Set the transform to a matrix defined by the values (see `.reset()`), or the default matrix. Unlike `.reset()`, the rest of the state (shader, blend, mask, geometry) is left unchanged
+		 */
+		setTransform(a?: number, b?: number, c?: number, d?: number, e?: number, f?: number, g?: number, h?: number, i?: number, j?: number, k?: number, l?: number): void
 
 		/**
 		 * Draw a sprite at `(0,0,0)` to `(1,1,1)`
@@ -1561,17 +1660,17 @@ namespace GammaInstance{
 		 */
 		drawv(values: any[]): void
 		/**
-		 *Draw a sprite at `(x, y, z)` with size `(w, h, d)`
+		 * Draw a sprite at `(x, y, z)` with size `(w, h, d)`
 		 * @param values Values, as required by the shader currently in use (See `Drawable.shader`, `Shader()` and `Shader.COLOR_3D_XZ`)
-		 * 
-		 * This version of drawRect() expects an array rather than spread parameters
+		 *
+		 * This version of drawCube() expects an array rather than spread parameters
 		 * @performance See `Drawable2D.draw()` for more info
 		 */
-		drawCubev(x: number, y: number, w: number, h: number, values: any[]): void
+		drawCubev(x: number, y: number, z: number, w: number, h: number, d: number, values: any[]): void
 		/**
-		 * Draw a sprite within a parallelogram defined by a matrix
-		 * 
-		 * Bottom at `(e, f)` with bottom edge defined by the vector `(a, b)` and left edge defined by `(c, d)`
+		 * Draw a sprite within a parallelepiped (3D parallelogram) defined by a matrix
+		 *
+		 * Bottom at `(j, k, l)` with X edge defined by the vector `(a, b, c)`, Y edge defined by `(d, e, f)` and Z edge defined by vector `(g, h, i)`
 		 * @param values Values, as required by the shader currently in use (See `Drawable.shader`, `Shader()` and `Shader.COLOR_3D_XZ`)
 		 * 
 		 * This version of drawMat() expects an array rather than spread parameters
@@ -1639,15 +1738,19 @@ namespace GammaInstance{
 	/** See `Drawable.mask` */ const UNSET = 64
 	/** See `Drawable.mask` */ const SET = 128
 	/** See `Drawable.mask` */ const FLIP = 192
+	/** See `Drawable.mask` */ const DEPTH = 256
+	/** See `Drawable.mask` */ const IF_CLOSER = 512
+	/** See `Drawable.mask` */ const IF_FURTHER = 1024
+	/** See `Drawable.mask` */ const DEPTH_NEVER = 1536
 
 	type Blend = number
 	/**
 	 * Construct a GPU blend mode
 	 * 
 	 * All colors are expected to be premultiplied by their alpha channel, by convention
-	 * @param sfac The source factor (`sfac`)
-	 * @param combine The combine operation
-	 * @param dfac The destination factor
+	 * @param sfac The source factor (`sfac`). Default: `ONE`
+	 * @param combine The combine operation. Default: `ADD`
+	 * @param dfac The destination factor. Default: `ZERO`
 	 * 
 	 * When blending a drawn color (`src`) with the existing canvas content (`dst`) the following formula is used
 	 * 
@@ -1674,10 +1777,10 @@ namespace GammaInstance{
 	 * 
 	 * Any of these values can be mixed to apply different rules for rgb values as for alpha values, for example, `RGB_ADD | A_MAX` will apply `ADD` to rgb channels and `MAX` to the alpha channel, and `RGB_SRC_ALPHA | ZERO` will use `SRC_ALPHA` for rgb and `ZERO` for alpha. Note that there are no `RGB_ZERO` or `A_ZERO` as these are just `ZERO` (even that can be omitted altogether as `ZERO === 0`)
 	 * 
-	 * @param alphaToCoverage Use the alpha value in conjunction with MSAA draw targets to simulate higher fidelity blending. Only a portion of the per-pixel samples are written, depending on the source's alpha. Note that when using this you should not provide premultiplied source, nor multiply the destination by `ONE_MINUS_SRC_ALPHA`
+	 * @param alphaToCoverage Use the alpha value in conjunction with MSAA draw targets to simulate higher fidelity blending. Only a portion of the per-pixel samples are written, depending on the source's alpha. Note that when using this you should not provide premultiplied source, nor multiply the destination by `ONE_MINUS_SRC_ALPHA`. Default: `false`
 	 * @performance This function is pure arithmetic and often even constant-folded
 	 */
-	function Blend(sfac: number, combine: number, dfac: number, alphaToCoverage: boolean): Blend
+	function Blend(sfac?: number, combine?: number, dfac?: number, alphaToCoverage?: boolean): Blend
 
 	/** See `Blend()` */ const ONE = 17
 	/** See `Blend()` */ const ZERO = 0
@@ -1693,9 +1796,9 @@ namespace GammaInstance{
 	/** See `Blend()` */ const ONE_MINUS_SRC_ALPHA = 85
 	/** See `Blend()` */ const RGB_ONE_MINUS_SRC_ALPHA = 5
 	/** See `Blend()` */ const A_ONE_MINUS_SRC = 80
-	/** See `Blend()` */ const DST = 136
+	/** See `Blend()` */ const DST = 104
 	/** See `Blend()` */ const RGB_DST = 8
-	/** See `Blend()` */ const ONE_MINUS_DST = 153
+	/** See `Blend()` */ const ONE_MINUS_DST = 121
 	/** See `Blend()` */ const RGB_ONE_MINUS_DST = 9
 	/** See `Blend()` */ const DST_ALPHA = 102
 	/** See `Blend()` */ const RGB_DST_ALPHA = 6
@@ -1703,23 +1806,21 @@ namespace GammaInstance{
 	/** See `Blend()` */ const ONE_MINUS_DST_ALPHA = 119
 	/** See `Blend()` */ const RGB_ONE_MINUS_DST_ALPHA = 7
 	/** See `Blend()` */ const A_ONE_MINUS_DST = 112
-	/** See `Blend()` */ const SRC_ALPHA_SATURATE = 170
-	/** See `Blend()` */ const RGB_SRC_ALPHA_SATURATE = 10
-	/** See `Blend()` */ const ADD = 17
+	/** See `Blend()` */ const ADD = 9
 	/** See `Blend()` */ const RGB_ADD = 1
-	/** See `Blend()` */ const A_ADD = 16
-	/** See `Blend()` */ const SUB = 85
+	/** See `Blend()` */ const A_ADD = 8
+	/** See `Blend()` */ const SUB = 45
 	/** See `Blend()` */ const RGB_SUB = 5
-	/** See `Blend()` */ const A_SUB = 80
-	/** See `Blend()` */ const SUB_REV = 102
+	/** See `Blend()` */ const A_SUB = 40
+	/** See `Blend()` */ const SUB_REV = 54
 	/** See `Blend()` */ const RGB_SUB_REV = 6
-	/** See `Blend()` */ const A_SUB_REV = 96
-	/** See `Blend()` */ const MIN = 34
+	/** See `Blend()` */ const A_SUB_REV = 48
+	/** See `Blend()` */ const MIN = 18
 	/** See `Blend()` */ const RGB_MIN = 2
-	/** See `Blend()` */ const A_MIN = 32
-	/** See `Blend()` */ const MAX = 51
+	/** See `Blend()` */ const A_MIN = 16
+	/** See `Blend()` */ const MAX = 27
 	/** See `Blend()` */ const RGB_MAX = 3
-	/** See `Blend()` */ const A_MAX = 48
+	/** See `Blend()` */ const A_MAX = 24
 
 	namespace Blend{
 		/** All new content completely replaces old content, including the alpha channel */
@@ -1763,8 +1864,8 @@ namespace GammaInstance{
 	 * By default (the default geometry), a sprite drawn in a box at `(x, y)` and size `(w, h)` will take the shape of a square (i.e from `(x, y)` to `(x+w, y)` to `(x, y+h)` to `(x+w, y+h)`), however, this can be changed with geometries
 	 * 
 	 * Geometries are created in the same way as meshes using lower level graphics APIs. You provide a list of vertices (points), and a method of connecting them to draw triangles (or lines/points). Quads do not exist, but can be made of 2 triangles
-	 * @param vertexParameters Additional per-vertex parameters (See `Geometry2D.Vertex()`)
-	 * @param type The primitive type, which determines how to connect vertices (points). Can be one of
+	 * @param vertexParameters Additional per-vertex parameters (See `Geometry2D.Vertex()`/`Geometry3D.Vertex()`). Default: the default vertex format, with no additional parameters. Passing a vertex format of the wrong dimension (2D vs 3D) returns `null`
+	 * @param type The primitive type, which determines how to connect vertices (points). Default: `TRIANGLE_STRIP`. Can be one of
 	 * - `POINTS` Do not connect the vertices, and instead draw them as 1-pixel points
 	 * - `LINES` Connect each standalone pair of vertices by a 1-pixel-wide line (i.e vertices are connected like 0-1 2-3 4-5 with gaps between pairs)
 	 * - `LINE_STRIP` Connect all adjacent vertices by a 1-pixel-wide line (i.e vertices are connected like 0-1-2-3-4-5 with no gaps between pairs)
@@ -1777,8 +1878,8 @@ namespace GammaInstance{
 	 * - `CW_ONLY` Only render triangles whose vertices appear to go clockwise. This means the triangle is only visible from one side. For the specific case of TRIANGLE_STRIP, since the spin of each triangle alternates in normal geometry, this rule is essentially flipped for each triangle: the first triangle must be winding clockwise to be rendered, the second counterclockwise, the third clockwise, and so on...
 	 * - `CCW_ONLY` Ditto but the faces must appear to be going counterclockwise instead of clockwise. The same alternating behavior occurs for TRIANGLE_STRIP
 	 */
-	function Geometry2D(type: number): Geometry2D & Transformable2D & Transformable2Dto2D
-	function Geometry2D(vertexParameters: Geometry2D.Vertex, type: number): Geometry2D & Transformable2D & Transformable2Dto2D
+	function Geometry2D(type?: number): Geometry2D & Transformable2D & Transformable2Dto2D
+	function Geometry2D(vertexParameters: Geometry2D.Vertex | null, type?: number): Geometry2D & Transformable2D & Transformable2Dto2D
 	interface Geometry{
 		/** Primitive type, see `Geometry2D()`/`Geometry3D()` */
 		type: number
@@ -1788,11 +1889,17 @@ namespace GammaInstance{
 		length: number
 		/** End in vertices of geometry/subgeometry (see `Geometry2D.sub()`/`Geometry3D.sub()`) */
 		end: number
-		/** Size of the entire geometry in vertices */
+		/** Number of vertices added so far that have not been uploaded yet (see `.upload()`) */
 		readonly size: number
+		/** Number of vertices (or indices, if a custom order was given) in the last upload. See `.upload()` */
+		readonly uploadCount: number
+		/** The vertex format of this geometry. See `Geometry2D.Vertex()` */
+		readonly vertex: Geometry2D.Vertex | Geometry3D.Vertex
+		/** An opaque object that will compare === for a geometry and its subgeometries */
+		readonly identity: opaque
 
-		/** Duplicate the last vertex, copying the exact position and values. The current transform is ignored for this operation. */
-		dup(): void
+		/** Duplicate the last vertex, copying the exact position and values. The current transform is ignored for this operation. Returns the new vertex's index, or `-1` if there is no vertex to duplicate */
+		dup(): number
 		/**
 		 * Upload all points added so far to the GPU, clearing any previously uploaded geometry. This method must be called prior to using the geometry
 		 * This method also clears all points on the CPU, so that you can use the same object to start constructing a new shape, without having to hold on to or manually clear the memory used by the last geometry
@@ -1837,14 +1944,14 @@ namespace GammaInstance{
 		 */
 		sub2dZY(): this extends Transformable2D ? never : Geometry2D & Transformable2D & Transformable2Dto2D
 
-		/** Add a point to the geometry at (x,y) with the current transform, and additional vertex values (see `Geometry2D.Vertex()`) */
-		addPoint(x: number, y: number, ...values: any[]): void
-		/** Add a point to the geometry at (0,0) with the current transform, and additional vertex values (see `Geometry2D.Vertex()`) */
-		add(...values: any[]): void
-		/** Add a point to the geometry at (x,y) with the current transform, and additional vertex values (see `Geometry2D.Vertex()`) */
-		addPointv(x: number, y: number, values: any[]): void
-		/** Add a point to the geometry at (0,0) with the current transform, and additional vertex values (see `Geometry2D.Vertex()`) */
-		addv(values: any[]): void
+		/** Add a point to the geometry at (x,y) with the current transform, and additional vertex values (see `Geometry2D.Vertex()`). Returns the new vertex's index */
+		addPoint(x: number, y: number, ...values: any[]): number
+		/** Add a point to the geometry at (0,0) with the current transform, and additional vertex values (see `Geometry2D.Vertex()`). Returns the new vertex's index */
+		add(...values: any[]): number
+		/** Add a point to the geometry at (x,y) with the current transform, and additional vertex values (see `Geometry2D.Vertex()`). Returns the new vertex's index */
+		addPointv(x: number, y: number, values: any[]): number
+		/** Add a point to the geometry at (0,0) with the current transform, and additional vertex values (see `Geometry2D.Vertex()`). Returns the new vertex's index */
+		addv(values: any[]): number
 	}
 	namespace Geometry2D{
 		/**
@@ -1859,8 +1966,11 @@ namespace GammaInstance{
 		 * - When interpolation is enabled, pixels within a triangle/line will read values as a mix of the values at the triangle's 3 vertices (or 2 vertices for a line)
 		 * - When interpolation is disabled, pixels within a triangle/line will read the value supplied to the last vertex of the triangle/line (based on the order which they are supplied)
 		 * - When rendering points, interpolation has no effect
+		 *
+		 * @param values The type of each parameter, or a single type for one parameter
+		 * @param defaults The default value for each parameter, used when it is not passed to `addPoint()`/`add()`. If not provided, a suitable `0`-like default is used
 		 */
-		function Vertex(values: number[]): Geometry2D.Vertex
+		function Vertex(values: number | number[], defaults?: any[]): Geometry2D.Vertex
 		interface Vertex{
 			/** Boolean indicating that this is a 2D Vertex format */
 			readonly three: false
@@ -1878,8 +1988,8 @@ namespace GammaInstance{
 	 * The default 3D geometry is the cube, which draws in a box (x,y,z)-(x+w,y+h,z+d), much like Geometry2D.SQUARE
 	 * 
 	 * Geometries are created in the same way as meshes using lower level graphics APIs. You provide a list of vertices (points), and a method of connecting them to draw triangles (or lines/points). Quads do not exist, but can be made of 2 triangles
-	 * @param vertexParameters Additional per-vertex parameters (See `Geometry2D.Vertex()`)
-	 * @param type The primitive type, which determines how to connect vertices (points). Can be one of
+	 * @param vertexParameters Additional per-vertex parameters (See `Geometry2D.Vertex()`/`Geometry3D.Vertex()`). Default: the default vertex format, with no additional parameters. Passing a vertex format of the wrong dimension (2D vs 3D) returns `null`
+	 * @param type The primitive type, which determines how to connect vertices (points). Default: `TRIANGLE_STRIP`. Can be one of
 	 * - `POINTS` Do not connect the vertices, and instead draw them as 1-pixel points
 	 * - `LINES` Connect each standalone pair of vertices by a 1-pixel-wide line (i.e vertices are connected like 0-1 2-3 4-5 with gaps between pairs)
 	 * - `LINE_STRIP` Connect all adjacent vertices by a 1-pixel-wide line (i.e vertices are connected like 0-1-2-3-4-5 with no gaps between pairs)
@@ -1892,8 +2002,8 @@ namespace GammaInstance{
 	 * - `CW_ONLY` Only render triangles whose vertices appear to go clockwise. This means the triangle is only visible from one side. For the specific case of TRIANGLE_STRIP, since the spin of each triangle alternates in normal geometry, this rule is essentially flipped for each triangle: the first triangle must be winding clockwise to be rendered, the second counterclockwise, the third clockwise, and so on...
 	 * - `CCW_ONLY` Ditto but the faces must appear to be going counterclockwise instead of clockwise. The same alternating behavior occurs for TRIANGLE_STRIP
 	 */
-	function Geometry3D(type: number): Geometry3D & Transformable3D & Transformable3Dto3D
-	function Geometry3D(vertexParameters: Geometry3D.Vertex, type: number): Geometry3D & Transformable3D & Transformable3Dto3D
+	function Geometry3D(type?: number): Geometry3D & Transformable3D & Transformable3Dto3D
+	function Geometry3D(vertexParameters: Geometry3D.Vertex | null, type?: number): Geometry3D & Transformable3D & Transformable3Dto3D
 	interface Geometry3D extends Geometry{
 		/**
 		 * Create a subgeometry, i.e a geometry containing only a subset of the points of this geometry, optionally with a different type
@@ -1922,14 +2032,14 @@ namespace GammaInstance{
 		 */
 		sub2dZY(): this extends Transformable2D ? never : Geometry3D & Transformable2D & Transformable2Dto3D
 
-		/** Add a point to the geometry at (x,y,z) with the current transform, and additional vertex values (see `Geometry2D.Vertex()`) */
-		addPoint(x: number, y: number, z: number, ...values: any[]): void
-		/** Add a point to the geometry at (0,0,0) with the current transform, and additional vertex values (see `Geometry2D.Vertex()`) */
-		add(...values: any[]): void
-		/** Add a point to the geometry at (x,y,z) with the current transform, and additional vertex values (see `Geometry2D.Vertex()`) */
-		addPointv(x: number, y: number, z: number, values: any[]): void
-		/** Add a point to the geometry at (0,0,0) with the current transform, and additional vertex values (see `Geometry2D.Vertex()`) */
-		addv(values: any[]): void
+		/** Add a point to the geometry at (x,y,z) with the current transform, and additional vertex values (see `Geometry2D.Vertex()`). Returns the new vertex's index */
+		addPoint(x: number, y: number, z: number, ...values: any[]): number
+		/** Add a point to the geometry at (0,0,0) with the current transform, and additional vertex values (see `Geometry2D.Vertex()`). Returns the new vertex's index */
+		add(...values: any[]): number
+		/** Add a point to the geometry at (x,y,z) with the current transform, and additional vertex values (see `Geometry2D.Vertex()`). Returns the new vertex's index */
+		addPointv(x: number, y: number, z: number, values: any[]): number
+		/** Add a point to the geometry at (0,0,0) with the current transform, and additional vertex values (see `Geometry2D.Vertex()`). Returns the new vertex's index */
+		addv(values: any[]): number
 	}
 	namespace Geometry3D{
 		/**
@@ -1944,8 +2054,11 @@ namespace GammaInstance{
 		 * - When interpolation is enabled, pixels within a triangle/line will read values as a mix of the values at the triangle's 3 vertices (or 2 vertices for a line)
 		 * - When interpolation is disabled, pixels within a triangle/line will read the value supplied to the last vertex of the triangle/line (based on the order which they are supplied)
 		 * - When rendering points, interpolation has no effect
+		 *
+		 * @param values The type of each parameter, or a single type for one parameter
+		 * @param defaults The default value for each parameter, used when it is not passed to `addPoint()`/`add()`. If not provided, a suitable `0`-like default is used
 		 */
-		function Vertex(values: number[]): Geometry3D.Vertex
+		function Vertex(values: number | number[], defaults?: any[]): Geometry3D.Vertex
 		interface Vertex{
 			/** Boolean indicating that this is a 3D Vertex format */
 			readonly three: true
@@ -1988,86 +2101,102 @@ namespace GammaInstance{
 	 * - `UVEC2`/`UVEC3`/`UVEC4` An object in the shape of `{x, y}`/`{x, y, z}`/`{x, y, z, w}` interpreted and passed to the shader as 32 bit unsigned integers
 	 * - `TEXTURE` A texture object of a float format. Subtexture crop/layer ignored. Read below for how to use these
 	 * - `FTEXTURE` A texture object of a high-precision floating point format (16F / 32F). Subtexture crop/layer ignored. Read below for how to use these
-	 * - `UTEXTURE` A texture object of integer format. Subtexture crop/layer ignored. Read below for how to use these
+	 * - `ITEXTURE` A texture object of a signed integer format. Subtexture crop/layer ignored. Read below for how to use these
+	 * - `UTEXTURE` A texture object of an unsigned integer format. Subtexture crop/layer ignored. Read below for how to use these
 	 * - `COLOR` A texture or flat color of a float format. Texture comes presampled in the shader (sample position is decided on the CPU side by sub-texture crop/layer). Read below for how to use these
 	 * - `FCOLOR` A texture or flat color of a high-precision floating point format. Texture comes presampled in the shader (sample position is decided on the CPU side by sub-texture crop/layer). Read below for how to use these
-	 * - `UCOLOR` A texture or flat color of an integer format. Texture comes presampled in the shader (sample position is decided on the CPU side by sub-texture crop/layer). Read below for how to use these
-	 * @param options.defaults The default values for the parameters. If not provided, a suitable `0`-like default is used (`TEXTURE`/`FTEXTURE`/`UTEXTURE` cannot have a default value)
+	 * - `ICOLOR` A texture or flat color of a signed integer format. Texture comes presampled in the shader (sample position is decided on the CPU side by sub-texture crop/layer). Read below for how to use these
+	 * - `UCOLOR` A texture or flat color of an unsigned integer format. Texture comes presampled in the shader (sample position is decided on the CPU side by sub-texture crop/layer). Read below for how to use these
+	 * @param options.defaults The default values for the parameters. If not provided, a suitable `0`-like default is used (`TEXTURE`/`FTEXTURE`/`ITEXTURE`/`UTEXTURE` cannot have a default value)
 	 * @param options.uniforms Shader uniforms (config). These have the same possible values as `params`
-	 * @param options.uniformDefaults The default values for the uniforms. If not provided, a suitable `0`-like default is used (`TEXTURE`/`FTEXTURE`/`UTEXTURE` cannot have a default value)
-	 * @param options.outputs The type of output for this shader. Can be
-	 * - `UINT` to make this shader only for rendering to integer targets
-	 * - `LOWP` (normal value)
-	 * - `FLOAT` for high precision targets (16F / 32F). This exists because `LOWP` will try to use the lowest precision available (`lowp`, for performance reasons), which may be insufficient for some use cases
-	 * Multiple outputs supported for drawing to multiple textures at once. See `Drawable.setTarget`
-	 * @param options.vertex The vertex format to be used by this shader. See `Geometry2D.Vertex` and `Geometry3D.Vertex`. A shader can only be used with geometries of compatible vertex type (i.e mixing 2D geometries with shaders meant for 3D geometries, or mixing a simple 3D geometry with a shader that expects 3D geometries with additional per-vertex data, are both invalid)
-	 * @param options.intFrac Optionally give a hint as to the bias towards integer or float textures. For example, if your shader uses one float and one int texture, but the int texture tends to stay the same while the float texture changes often, set this to `1` to indicate that you will use more float textures. Out of the 16 available texture slots, 15 will then be allocated for float textures, as opposed to 8 by default (when `intFrac == 0.5`), which will slightly increase performance
-	 * 
+	 * @param options.uniformDefaults The default values for the uniforms. If not provided, a suitable `0`-like default is used (`TEXTURE`/`FTEXTURE`/`ITEXTURE`/`UTEXTURE` cannot have a default value)
+	 * @param options.outputs The type of output for this shader, or an array of types for drawing to multiple targets at once (see `Drawable.setTarget()`; at most `Drawable.MAX_TARGETS` outputs). Each can be
+	 * - `UINT` / `INT` for rendering to integer targets (the output is a `uvec4`)
+	 * - `FLOAT` for high precision targets (16F / 32F). The output is a `highp vec4`
+	 * - Any other value (e.g the default, `4`) for normal targets. The output is a `lowp vec4`, which uses the lowest precision available for performance reasons, and may be insufficient for some use cases
+	 *
+	 * Default: `4` (one normal, lowp output)
+	 * @param options.vertex The vertex format to be used by this shader. See `Geometry2D.Vertex` and `Geometry3D.Vertex`. A shader can only be used with geometries of compatible vertex type (i.e mixing 2D geometries with shaders meant for 3D geometries, or mixing a simple 3D geometry with a shader that expects 3D geometries with additional per-vertex data, are both invalid). Default: `Geometry2D.Vertex.DEFAULT`
+	 * @param options.intFrac Optionally give a hint as to the bias towards integer or float textures. For example, if your shader uses one float and one int texture, but the int texture tends to stay the same while the float texture changes often, set this to `1` to indicate that you will use more float textures. Out of the available texture slots (usually 16), all but one will then be allocated for float textures, as opposed to half by default (when `intFrac == 0.5`), which will slightly increase performance. Default: `0.5`
+	 *
 	 * Note that you cannot use more than 16 different texture parameters in a single shader (across both `params` and `uniforms`), and that the number of params is also individually limited (don't go crazy and if you do run out, consider combining multiple `FLOAT`s to a `VEC2`/`VEC3`/`VEC4`, etc...)
-	 * 
+	 *
 	 * ## Additions to GLSL
-	 * 
+	 *
 	 * The following functions have been added to GLSL to interface with the rest of Gamma
 	 * ```glsl
 	 * #version 300 es
-	 * precision mediump float;
+	 * precision highp float;
 	 * precision highp int;
-	 * // tex2DArray can be a `TEXTURE` or `FTEXTURE`
-	 * // uTex2DArray is `UTEXTURE`
+	 * // tex2DArray can be a `TEXTURE` or `FTEXTURE` param
+	 * // uTex2DArray can be an `ITEXTURE` or `UTEXTURE` param
 	 * // Both are in fact `int`s
-	 * 
+	 * // `TEXTURE`/`FTEXTURE`/`ITEXTURE`/`UTEXTURE` uniforms are real sampler2DArray/usampler2DArray, which are also accepted by these functions
+	 *
 	 * // Similar to texture(): Sampling based on the texture's options and GPU hardware
 	 * // The uv contains x/y coordinates between 0 and 1 and the layer as the third component
 	 * // Unlike GLSL ES's texture(), the texture provided can be dynamic since it is backed by an `int`
 	 * lowp vec4 getColor(tex2DArray texture, vec3 uv);
 	 * highp vec4 fGetColor(tex2DArray tex, vec3 uv);
+	 * ivec4 iGetColor(uTex2DArray tex, vec3 uv);
 	 * uvec4 uGetColor(uTex2DArray tex, vec3 uv);
-	 * 
+	 *
 	 * // Similar to texelFetch: takes integer coordinates and does no filtering/wrapping
 	 * // Unlike GLSL ES's texelFetch(), the texture provided can be dynamic since it is backed by an `int`
 	 * lowp vec4 getPixel(tex2DArray texture, ivec3 pos, int mip);
 	 * highp vec4 fGetPixel(tex2DArray texture, ivec3 pos, int mip);
+	 * ivec4 iGetPixel(uTex2DArray texture, ivec3 pos, int mip);
 	 * uvec4 uGetPixel(uTex2DArray texture, ivec3 pos, int mip);
-	 * 
+	 *
+	 * // Read depth values from a depth texture (see `Formats.DEPTH32F`), already converted back to real depths
+	 * float dGetValue(tex2DArray texture, vec3 uv);
+	 * float dGetPixel(tex2DArray texture, ivec3 pos, int mip);
+	 *
 	 * // Similar to textureSize
 	 * // Unlike GLSL ES's textureSize(), the texture provided can be dynamic since it is backed by an `int`
 	 * ivec3 getSize(tex2DArray texture, int mip);
 	 * ivec3 getSize(uTex2DArray texture, int mip);
-	 * 
-	 * // The arguments and uniforms specified at the shader's creation
+	 *
+	 * // The params and uniforms specified at the shader's creation
 	 * in auto param0, param1, param2, ...;
 	 * uniform auto uni0, uni1, uni2, ...;
-	 * 
-	 * // The color to output (can be lowp vec4, highp vec4 or uvec4, specified by the `output` parameter at the shader's creation)
-	 * out auto col;
-	 * 
-	 * // uv, usually in the range (0,0) to (1,1) but is specified by the current Geometry in use (see `Geometry()`)
-	 * in vec2 uv;
-	 * // Actual position of fragment relative to sprite, usually in the range (0,0) to (1,1) but is specified by the current Geometry in use (see `Geometry()`)
-	 * in vec2 xy;
-	 * 
-	 * // `COLOR`/`FCOLOR`/`UCOLOR`s are used by calling them, e.g
+	 * // Additional per-vertex values, as specified by the vertex format (see `Geometry2D.Vertex()`)
+	 * in auto vparam0, vparam1, ...;
+	 *
+	 * // The color to output (lowp vec4, highp vec4 or uvec4, as specified by the `outputs` option at the shader's creation)
+	 * // When there are multiple outputs, they are named color0, color1, ...; `color` is the same as `color0`
+	 * out auto color;
+	 *
+	 * // The fragment's position in the geometry's own space, usually in the range (0,0) to (1,1) (vec3 and (0,0,0) to (1,1,1) for 3D shaders), as defined by the current geometry (see `Geometry2D()`)
+	 * in vec2 pos;
+	 *
+	 * // The fragment's depth (distance from the camera, for perspective drawables)
+	 * float depth;
+	 * // Override the fragment's depth, for depth testing (see `Drawable.mask`)
+	 * void setDepth(float depth);
+	 *
+	 * // `COLOR`/`FCOLOR`/`ICOLOR`/`UCOLOR`s are used by calling them with a position, e.g
 	 * void main(){
 	 * ‍   // Assuming param0 is a `COLOR`
-	 * ‍   col = param0(uv);
+	 * ‍   color = param0(pos);
 	 * }
-	 * 
+	 *
 	 * // All other types are used like normal
 	 * // E.g
 	 * void main(){
-	 * ‍   if(param0 > 1){
-	 * ‍      col = getColor(uni0, vec3(uv, 0));
+	 * ‍   if(param0 > 1.){
+	 * ‍      color = getColor(uni0, vec3(pos, 0));
 	 * ‍   }else{
 	 * ‍      // something idk this is just an example
-	 * ‍      col = vec4(arg1, 1.);
+	 * ‍      color = vec4(param1, 1.);
 	 * ‍   }
 	 * }
 	 * ```
-	 * 
+	 *
 	 * If you made it this far without your brain exploding, congratulations! Take a break :)
 	 */
-	function Shader(glsl: string, options?: { params?: number | number[], defaults?: number | number[], uniforms?: number | number[], uniformDefaults?: number | number[], outputs?: number, intFrac?: number, vertex?: Geometry2D.Vertex }): Shader2D
-	function Shader(glsl: string, options: { params?: number | number[], defaults?: number | number[], uniforms?: number | number[], uniformDefaults?: number | number[], outputs?: number, intFrac?: number, vertex: Geometry3D.Vertex }): Shader3D
+	function Shader(glsl: string, options?: { params?: number | number[], defaults?: any, uniforms?: number | number[], uniformDefaults?: any, outputs?: number | number[], intFrac?: number, vertex?: Geometry2D.Vertex }): Shader2D
+	function Shader(glsl: string, options: { params?: number | number[], defaults?: any, uniforms?: number | number[], uniformDefaults?: any, outputs?: number | number[], intFrac?: number, vertex: Geometry3D.Vertex }): Shader3D
 
 	/** See `Shader()` */ const FLOAT = 0
 	/** See `Shader()` */ const VEC2 = 1
@@ -2082,21 +2211,34 @@ namespace GammaInstance{
 	/** See `Shader()` */ const UVEC3 = 34
 	/** See `Shader()` */ const UVEC4 = 35
 	/** See `Geometry2D.Vertex() / Geometry3D.Vertex()` */ const FLAT = 64
-	/** See `Shader()` */ const TEXTURE = 20
-	/** See `Shader()` */ const UTEXTURE = 24
-	/** See `Shader()` */ const FTEXTURE = 28
-	/** See `Shader()` */ const COLOR = 4
-	/** See `Shader()` */ const UCOLOR = 8
-	/** See `Shader()` */ const FCOLOR = 12
-	/** See `Shader()` */ const LOWP = 4
+	/** See `Shader()` */ const TEXTURE = 28
+	/** See `Shader()` */ const FTEXTURE = 29
+	/** See `Shader()` */ const ITEXTURE = 30
+	/** See `Shader()` */ const UTEXTURE = 31
+	/** See `Shader()` */ const COLOR = 12
+	/** See `Shader()` */ const FCOLOR = 13
+	/** See `Shader()` */ const ICOLOR = 14
+	/** See `Shader()` */ const UCOLOR = 15
 
 	interface Shader2D{
 		/** Set the shader's uniforms, as specified by the shader itself. See `Shader()` */
 		uniforms(...values: any[]): void
+		/** The vertex format this shader was created with. See `Shader()` */
+		readonly vertex: Geometry2D.Vertex
+		/** Whether this is a 3D shader. False here */
+		readonly three: false
+		/** The full fragment shader source, including everything Gamma adds to it. Useful for debugging */
+		readonly src: string
 	}
 	interface Shader3D{
 		/** Set the shader's uniforms, as specified by the shader itself. See `Shader()` */
 		uniforms(...values: any[]): void
+		/** The vertex format this shader was created with. See `Shader()` */
+		readonly vertex: Geometry3D.Vertex
+		/** Whether this is a 3D shader. True here */
+		readonly three: true
+		/** The full fragment shader source, including everything Gamma adds to it. Useful for debugging */
+		readonly src: string
 	}
 	namespace Shader{
 		/**
@@ -2160,6 +2302,12 @@ namespace GammaInstance{
 	 * @performance Performs a few post-frame cleanups. No need to call mid-frame as there is literally no benefit and only opportunity to hurt performance. Might be useful to work around library bugs (hopefully there are none!)
 	 */
 	function flush(): void
+	/**
+	 * Add a callback to be called at the end of every `flush()` (i.e at the end of every frame when using `loop()`)
+	 */
+	function onFlush(cb: () => any): void
+	/** The flags passed to `Gamma()`. See `Gamma.STENCIL`, `Gamma.AUTO_CLEAR_BUFFER`, etc... */
+	const flags: number
 
 	/** The main Drawable, representing the <canvas> element. This drawable is limited: it cannot be read from, or have its configuration modified in any way. To do that, draw to a separate drawable and then `paste()` to `ctx` */
 	const ctx: Drawable2D
@@ -2175,10 +2323,11 @@ namespace GammaInstance{
 	 */
 	function wait(): Promise<void>
 	/**
-	 * Construct a render loop
-	 * @param cb Rendering callback that is called every frame. Draw stuff to the canvas in here
+	 * Start the render loop. Only one render loop can exist: calling this again does nothing
+	 * @param cb Rendering callback that is called every frame. Draw stuff to the canvas in here. `ctx` is reset before each call, and if nothing was drawn, the canvas is cleared
+	 * @returns The Gamma instance (i.e `globalThis` for the global version)
 	 */
-	function loop(cb: () => any): typeof canvas
+	function loop(cb: () => any): typeof globalThis
 
 	/**
 	 * How many `glDraw*()` calls were performed during the last frame
@@ -2208,7 +2357,9 @@ namespace GammaInstance{
 	 * The time passed since the last frame, in seconds. Use it for animations and such
 	 * 
 	 * E.g at 60fps, `dt` will typically be close to 1/60, or 0.016
-	 * 
+	 *
+	 * The value is clamped between `0.001` and `0.5`, so that a long pause (e.g the tab being in the background) doesn't produce one huge jump
+	 *
 	 * Available after calling `loop()`, calculated automatically
 	 */
 	let dt: number

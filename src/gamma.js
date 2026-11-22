@@ -394,27 +394,32 @@ class t3t2D{
 	sub2dZY(){ return new t2D(this.e,this.f,this.c,this.d,this.g,this.h) }
 	sub2dXZ(){ return new t2D(this.a,this.b,this.e,this.f,this.g,this.h) }
 	reset(a=1,b=0,c=0,d=1,e=0,f=0,g=0,h=0){ if(typeof a=='object')({a,b,c,d,e,f,g,h}=a);this.a=a;this.b=b;this.c=c;this.d=d;this.e=e;this.f=f;this.g=g;this.h=h }
+	// No perspective: projecting is just transforming
 	project(x=0, y=0, z=0){
 		if(typeof x=='object')({x,y,z=0}=x)
-		let p = this.c*x+this.f*y+this.i*z+this.l
-		if(p <= 0) return {x:NaN,y:NaN}
-		p = 1/p
-		return { x: (this.a*x+this.d*y+this.g*z+this.j)*p, y: (this.b*x+this.e*y+this.h*z+this.k)*p }
+		return { x: this.a*x+this.c*y+this.e*z+this.g, y: this.b*x+this.d*y+this.f*z+this.h }
 	}
+	// A whole line of points maps to (x, y). Return the one closest to the local origin (minimum-norm solution)
+	// Rows of the 2x3 linear part: r1 = (a,c,e), r2 = (b,d,f). p = s*r1 + t*r2, where (s,t) solves (A*Aᵀ)(s,t) = (x-g, y-h)
 	unproject(x=0, y=0){
 		if(typeof x=='object')({x,y}=x)
-		const {a,b,c,d,e,f,g,h,i} = this
-		x -= this.j; y -= this.k
-		const z = 1-this.l
-		const m = e*i-f*h, n = c*h-b*i, o = b*f-c*e, i_det = 1./(a*m + d*n + g*o)
-		return {
-			x: (m * x + (g*f - i*d) * y + (d*h - e*g) * z) * i_det,
-			y: (n * x + (a*i - c*g) * y + (g*b - h*a) * z) * i_det,
-			z: (o * x + (d*c - f*a) * y + (a*e - b*d) * z) * i_det,
-		}
+		const {a,b,c,d,e,f} = this
+		x -= this.g; y -= this.h
+		const P = a*a+c*c+e*e, Q = a*b+c*d+e*f, R = b*b+d*d+f*f, i_det = 1/(P*R-Q*Q)
+		const s = (R*x-Q*y)*i_det, t = (P*y-Q*x)*i_det
+		return { x: s*a+t*b, y: s*c+t*d, z: s*e+t*f }
 	}
+	// Orthographic: the origin is infinitely far away
 	perspectiveOrigin(){ return { x: NaN, y: NaN, z: NaN } }
-	perspectiveRay(_x=0, _y=0, _o=null){ return { x: NaN, y: NaN, z: NaN } }
+	// All rays are parallel, along the direction that doesn't move on screen (r1 × r2). The origin, if requested, is set to .unproject(x, y)
+	perspectiveRay(x=0, y=0, origin=null){
+		if(typeof x=='object')(origin=y??null,{x,y}=x)
+		const {a,b,c,d,e,f} = this
+		if(origin){ const p = this.unproject(x, y); origin.x = p.x; origin.y = p.y; origin.z = p.z }
+		const dx = c*f-e*d, dy = e*b-a*f, dz = a*d-c*b
+		const i_dst = 1/sqrt(dx*dx+dy*dy+dz*dz)
+		return { x: dx*i_dst, y: dy*i_dst, z: dz*i_dst }
+	}
 	translate(x=0,y=0,z=0){
 		this.g+=x*this.a+y*this.c+z*this.e
 		this.h+=x*this.b+y*this.d+z*this.f
@@ -481,7 +486,7 @@ class t3t2D{
 		const a1 = (e*i - f*h) * i_det, b1 = (c*h - b*i) * i_det, c1 = (b*f - c*e) * i_det
 		const d1 = (f*g - d*i) * i_det, e1 = (a*i - c*g) * i_det, f1 = (c*d - a*f) * i_det
 		const g1 = (d*h - e*g) * i_det, h1 = (b*g - a*h) * i_det, i1 = (a*e - b*d) * i_det
-		const j1 = -(ia*j + id_*k + ig*l), k1 = -(ib*j + ie*k + ih*l), l1 = -(ic*j + if_*k + ii*l)
+		const j1 = -(a1*j + d1*k + g1*l), k1 = -(b1*j + e1*k + h1*l), l1 = -(c1*j + f1*k + i1*l)
 		return this.transform(a1,b1,c1,d1,e1,f1,g1,h1,i1,j1,k1,l1)
 	}
 	box(x=0,y=0,z=0,w=1,h=w,d=w){
@@ -777,7 +782,7 @@ Object.assign($, {
 	TRIANGLE_STRIP: 5, TRIANGLES: 4, TRIANGLE_FAN: 6,
 	LINE_LOOP: 2, LINE_STRIP: 3, LINES: 1, POINTS: 0
 })
-$.Formats={
+$.Formats = {
 	R: [33321,gl.RED,gl.UNSIGNED_BYTE,0],
 	RG: [33323,gl.RG,gl.UNSIGNED_BYTE,0],
 	RGB: [32849,gl.RGB,gl.UNSIGNED_BYTE,0],
@@ -859,7 +864,7 @@ class Tex{
 		this.t = t; this.x = x; this.y = y
 		this.w = w; this.h = h; this.l = l
 	}
-	get loaded(){ return !this.t.src }
+	get ready(){ return !this.t.src }
 	get usable(){ return this.t.src ? (this.t._tex || Tex.load(this.t), false) : true }
 	get then(){ return this.t.src ? this.#then : null }
 	load(){ if(!this.t._tex) Tex.load(this.t) }
@@ -894,11 +899,6 @@ class Tex{
 		t.src = []
 		let w = 0, h = 0
 		t._tex = gl.createTexture()
-		if(t.f[3]&262144){
-			const a = []
-			for(let i=t.d*t.mips; i>0; i--) a.push({s:0})
-			t._tex.s = a
-		}
 		const reject = () => {
 			loaded = -1
 			Tex.setOptions(t)
@@ -940,7 +940,7 @@ class Tex{
 		const {t} = this
 		if(t.src) return null
 		const fmt = t.f[3]||4230368
-		if(tex.msaa){
+		if(tex._msaa){
 			const fmt2 = tex.f[3]||4230368, m = (fmt&fmt2)>>16
 			i&&draw()
 			srcH = srcW || tex.height; srcW = srcL || tex.width
@@ -951,21 +951,6 @@ class Tex{
 			fmt==298272 ? gl.framebufferRenderbuffer(gl.DRAW_FRAMEBUFFER, gl.STENCIL_ATTACHMENT, gl.RENDERBUFFER, t._tex[dstMip+(l++)*t.m]) : gl.framebufferTextureLayer(gl.DRAW_FRAMEBUFFER, fmt&65535, t._tex, dstMip, l)
 			gl.blitFramebuffer(srcX, srcY, srcX+srcW, srcY+srcH, x, y, x+srcW, y+srcH, m<<8, gl.NEAREST)
 			gl.framebufferRenderbuffer(gl.DRAW_FRAMEBUFFER, fmt&65535, gl.RENDERBUFFER, null), gl.framebufferRenderbuffer(gl.READ_FRAMEBUFFER, fmt2&65535, gl.RENDERBUFFER, null)
-			return this
-		}
-		if(fmt==298272){
-			i&&draw()
-			const {t: t2} = tex, fmt2 = t2.f[3]
-			if(!(fmt2&262144)) return this
-			if(curfb != drawfb) gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, curfb = drawfb), curt=lastd=null
-			if(m&64){ if(~pmask&15) gl.colorMask(1, 1, 1, 1), pmask |= 15, lastd = null }
-			else if((m&1)&&(~pmask&256)) gl.depthMask(1), pmask |= 256, lastd = null
-			while(srcD--){
-				;(fmt2&65535)==36128?gl.framebufferRenderbuffer(gl.READ_FRAMEBUFFER, gl.STENCIL_ATTACHMENT, gl.RENDERBUFFER, t2._tex[srcMip+(srcL++)*t2.m]):gl.framebufferTextureLayer(gl.DRAW_FRAMEBUFFER, fmt2&65535, tex._tex, srcMip, srcL++)
-				gl.framebufferRenderbuffer(gl.DRAW_FRAMEBUFFER, gl.STENCIL_ATTACHMENT, gl.RENDERBUFFER, t._tex[dstMip+(l++)*t.m])
-				gl.blitFramebuffer(srcX, srcY, srcX+srcW, srcY+srcH, x, y, x+srcW, y+srcH, m<<8, gl.NEAREST)
-			}
-			gl.framebufferRenderbuffer(gl.DRAW_FRAMEBUFFER, gl.STENCIL_ATTACHMENT, gl.RENDERBUFFER, null), gl.framebufferRenderbuffer(gl.READ_FRAMEBUFFER, fmt2&65535, gl.RENDERBUFFER, null)
 			return this
 		}
 		if(!(tex instanceof Tex)) return resolveData(tex, i => {
@@ -982,10 +967,9 @@ class Tex{
 			return this
 		})
 		const {t: t2} = tex
-		if(t2.f[3]!=fmt||t2.src||t._tex==t2._tex)
+		if((t2.f[3]||4230368)!=fmt||t2.src||t._tex==t2._tex)
 			return this
 		Tex.fakeBind(t)
-		srcW = srcW || t2.w; srcH = srcH || t2.h; srcD = srcD || t2.d
 		while(srcD--){
 			gl.framebufferTextureLayer(gl.READ_FRAMEBUFFER, gl.COLOR_ATTACHMENT0, t2._tex, srcMip, srcL++)
 			gl.copyTexSubImage3D(gl.TEXTURE_2D_ARRAY, dstMip, x, y, l++, srcX, srcY, srcW, srcH)
@@ -1025,8 +1009,7 @@ class Tex{
 	delete(){
 		const {t} = this
 		if(!t._tex) return
-		if(Array.isArray(t._tex)){ for(const rb of t._tex) gl.deleteRenderbuffer(rb) }
-		else gl.deleteTexture(t._tex)
+		gl.deleteTexture(t._tex)
 		t._tex = null; t.d = t.w = t.h = 0
 		if(t.i >= 0) bound[t.i] = null, t.i = -1
 	}
@@ -1096,7 +1079,7 @@ class Tex{
 		if(t.i < 0) gl.bindTexture(gl.TEXTURE_2D_ARRAY, null)
 	}
 }
-Tex.prototype.msaa = 0
+Tex.prototype.msaa = Tex.prototype._msaa = 0
 $.Drawable = () => new Drw2D({ s: null, _fb: gl.createFramebuffer(), w: 0, h: 0, m: 0, t: [] })
 $.Drawable.MAX_TARGETS = gl.getParameter(gl.MAX_COLOR_ATTACHMENTS)
 $.Drawable.DRAW_16F = !!gl.getExtension('EXT_color_buffer_half_float')
@@ -1106,33 +1089,11 @@ let arr = new Float32Array(1024), iarr = new Int32Array(arr.buffer), i = 0
 $.Texture = (w = 0, h = 0, d = 1, o = 0, f = $.Formats.RGBA, mips = 0) => {
 	mips = min((mips>>>0)||1, floor(log2(max(w, h)))+1)
 	w = w>>>0||1; h = h>>>0||1; d = (d>>>0)||1
-	if(f[3]===298272){
-		const _tex = []
-		for(let i = d; i >= 0; i--){
-			let w1 = w, h1 = h
-			for(;;){
-				const rb = gl.createRenderbuffer()
-				rb.s = 0
-				gl.bindRenderbuffer(gl.RENDERBUFFER, rb)
-				_tex.push(rb)
-				gl.renderbufferStorage(gl.RENDERBUFFER, f[0], w1, h1)
-				if(w1+h1==2) break
-				w1 = w1+1>>>1; h1 = h1+1>>>1
-			}
-		}
-		return new Tex({ _tex, i: -1, o, f, src: undefined, w, h, d, m: mips })
-	}else{
-		const t = { _tex: gl.createTexture(), i: -1, o, f, src: null, w, h, d, m: mips }
-		if(f[3]&262144){
-			const a = []
-			for(let i=d*mips; i>0; i--) a.push({s:0})
-			t._tex.s = a
-		}
-		Tex.setOptions(t)
-		gl.texStorage3D(gl.TEXTURE_2D_ARRAY, mips, t.f[0], w, h, d)
-		gl.bindTexture(gl.TEXTURE_2D_ARRAY, null)
-		return new Tex(t)
-	}
+	const t = { _tex: gl.createTexture(), i: -1, o, f, src: null, w, h, d, m: mips }
+	Tex.setOptions(t)
+	gl.texStorage3D(gl.TEXTURE_2D_ARRAY, mips, t.f[0], w, h, d)
+	gl.bindTexture(gl.TEXTURE_2D_ARRAY, null)
+	return new Tex(t)
 }
 $.Texture.MAX_WIDTH = $.Texture.MAX_HEIGHT = gl.getParameter(gl.MAX_TEXTURE_SIZE)
 $.Texture.MAX_LAYERS = gl.getParameter(gl.MAX_ARRAY_TEXTURE_LAYERS)
@@ -1192,7 +1153,7 @@ $.Texture.Surface = (w=0, h=0, msaa=0, f=$.Formats.RGBA)=>{
 	if(f[3]&262144) rb.s = 0
 	gl.bindRenderbuffer(gl.RENDERBUFFER, rb)
 	msaa>1?gl.renderbufferStorageMultisample(gl.RENDERBUFFER, msaa, f[0], w, h):gl.renderbufferStorage(gl.RENDERBUFFER, f[0], w, h)
-	return {_tex: rb, width: w, height: h, msaa: msaa>1?gl.getRenderbufferParameter(gl.RENDERBUFFER, gl.RENDERBUFFER_SAMPLES):1, format: f, f, delete: deleteRb, readData: readDataRb}
+	return {_tex: rb, width: w, height: h, msaa: msaa>1?gl.getRenderbufferParameter(gl.RENDERBUFFER, gl.RENDERBUFFER_SAMPLES):1, _msaa: msaa, format: f, f, delete: deleteRb, readData: readDataRb}
 }
 $.Texture.from = (src, o = 0, fmt = $.Formats.RGBA, mips = 0) => new Tex({
 	_tex: null, i: -1, o, f:fmt, src: src ? Array.isArray(src) ? src : [src] : [],
@@ -1413,10 +1374,9 @@ class Drw3D extends t3D{
 }
 const genericDel = tx => {
 	if(!tx) return
-	if(tx.msaa) tx.delete()
+	if(tx._msaa) tx.delete()
 	else if(tx._tex){
-		if(Array.isArray(tx._tex)){ for(const rb of tx._tex) gl.deleteRenderbuffer(rb) }
-		else gl.deleteTexture(tx._tex)
+		gl.deleteTexture(tx._tex)
 		tx._tex = null; tx.d = tx.w = tx.h = 0
 		if(tx.i >= 0) bound[tx.i] = null, tx.i = -1
 	}
@@ -1491,7 +1451,7 @@ const x = Object.getOwnPropertyDescriptors({
 			}
 			return
 		}
-		const msaa = tex.msaa
+		const msaa = tex._msaa
 		if(!msaa){
 			tex = tex.t
 			if(tex.i>=0) gl.activeTexture(gl.TEXTURE0 + tex.i), gl.bindTexture(gl.TEXTURE_2D_ARRAY, null), bound[tex.i] = null, tex.i = -1
@@ -1509,35 +1469,35 @@ const x = Object.getOwnPropertyDescriptors({
 		}
 		let fmt = 0
 		id = id ? 36063 + id : (fmt=tex.f[3])&65535
-		if(msaa) gl.framebufferRenderbuffer(gl.DRAW_FRAMEBUFFER, id, gl.RENDERBUFFER, tex._tex), fmt&&(t.s=fmt&262144?tex._tex:null)
-		else{
-			if(id==gl.STENCIL_ATTACHMENT) gl.framebufferRenderbuffer(gl.DRAW_FRAMEBUFFER, id, gl.RENDERBUFFER, t.s=tex._tex[mip+l*tex.m])
-			else gl.framebufferTextureLayer(gl.DRAW_FRAMEBUFFER, id, tex._tex, mip, l), fmt&&(t.s=fmt&262144)?tex._tex.s[mip+l*tex.m]:null
-		}
+		if(msaa) gl.framebufferRenderbuffer(gl.DRAW_FRAMEBUFFER, id, gl.RENDERBUFFER, tex._tex)
+		else gl.framebufferTextureLayer(gl.DRAW_FRAMEBUFFER, id, tex._tex, mip, l)
 	},
 	auto(w, h, msaa=0, ...f){
-		const t = this.t
-		const mk = f => f?msaa?$.Texture.Surface(w, h, msaa, f):$.Texture(w, h, 1, 0, f, 99):null
+		const t = this.t, ret = []
+		for(let i = 1; i < f.length; i++) ret.push(null)
+		ret[-1] = null
 		if(w==t.w&&h==t.h&&msaa==t.m){
 			let d = t.t.length-f.length
+			for(let i = f.length; i--; ){
+				let tx = t.t[i]
+				if(tx?.f != f[i]){
+					genericDel(tx)
+					this.setTarget(i-1, ret[i-1] = f[i] ? msaa ? $.Texture.Surface(w, h, msaa, f[i]) : $.Texture(w, h, 1, 0, f[i], 99):null)
+				}else ret[i-1] = tx._msaa ? tx : new Tex(tx)
+			}
 			if(d>0){
 				for(let i = f.length; d--;) genericDel(t.t[i]), this.setTarget(i++-1, null)
 			}else if(d<0){
-				for(let i = t.t.length; d++;) this.setTarget(i-1, mk(f[i++]))
+				for(let i = t.t.length; d++; i++) this.setTarget(i-1, ret[i-1] = f[i] ? msaa ? $.Texture.Surface(w, h, msaa, f[i]) : $.Texture(w, h, 1, 0, f[i], 99):null)
 			}
-			for(let i = f.length; i--; ) if(t.t[i]?.f!=f[i]) genericDel(t.t[i]), this.setTarget(i-1, mk(f[i]))
 		}else{
 			for(const tx of t.t) genericDel(tx)
 			this.clearTargets()
 			let i = -1
-			if(msaa>=0){
-				for(const f1 of f) this.setTarget(i++, $.Texture.Surface(w, h, msaa, f1))
-			}else{
-				for(const f1 of f) this.setTarget(i++, $.Texture(w, h, 1, 0, f1, 99))
-			}
+			for(const f1 of f)
+				this.setTarget(i, ret[i++] = f1 ? msaa > 0 ? $.Texture.Surface(w, h, msaa, f1) : $.Texture(w, h, 1, 0, f1, 99) : null)
 		}
-		const a = t.t.slice(1); a[-1] = t.t[0]
-		return a
+		return ret
 	},
 	clearTargets(){
 		const {t} = this
@@ -1548,7 +1508,7 @@ const x = Object.getOwnPropertyDescriptors({
 		t.w = t.h = t.m = 0
 		if(curfb != t._fb) gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, curfb = t._fb), curt=lastd=null
 		for(let b = t.t.length; --b; ){
-			gl.framebufferRenderbuffer(gl.DRAW_FRAMEBUFFER, b ? gl.COLOR_ATTACHMENT0+b : gl.DEPTH_STENCIL_ATTACHMENT, gl.RENDERBUFFER, null)
+			gl.framebufferRenderbuffer(gl.DRAW_FRAMEBUFFER, b ? gl.COLOR_ATTACHMENT0+b-1 : gl.DEPTH_STENCIL_ATTACHMENT, gl.RENDERBUFFER, null)
 		}
 		t.s = null
 		t.t.length = 0
@@ -2164,7 +2124,7 @@ $.Shader.BLACK = $.Shader(`void main(){color=vec4(0,0,0,1);}`)
 $.Shader.SIMPLE = $.Shader(`void main(){color=param0;}`, { params: [$.VEC4] })
 $.Shader.DEFAULT = $.Shader(`void main(){color=param0(pos)*param1;}`, { params: [$.COLOR, $.VEC4], defaults: [void 0, $.vec4.one] })
 $.Shader.COLOR_3D_XZ = $.Shader(`void main(){color=param0(pos.xz);}`, { params: [$.COLOR], vertex: $.Geometry3D.Vertex.DEFAULT })
-$.Shader.SHADED_3D = $.Shader(`void main(){color=param0(pos.xy);color.rgb*=1.+dot(normalize(cross(dFdx(pos),dFdy(pos))),param1);}`, { params: [$.COLOR, $.VEC3], defaults: [void 0, $.vec3(-.15,-.3,0)], vertex: $.Geometry3D.Vertex.DEFAULT })
+$.Shader.SHADED_3D = $.Shader(`void main(){color=param0(pos.xz);color.rgb*=1.+dot(normalize(cross(dFdx(pos),dFdy(pos))),param1);}`, { params: [$.COLOR, $.VEC3], defaults: [void 0, $.vec3(-.15,-.3,0)], vertex: $.Geometry3D.Vertex.DEFAULT })
 let lastClr = 0
 const onfl = []
 $.onFlush = f => onfl.push(f)
@@ -2234,7 +2194,7 @@ $.loop = render => {
 		i&&draw()
 		gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, curfb = curt = lastd = null)
 		ctx.t.s.s = 0
-		dt = max(.001, min(-($.t-($.t=performance.now()*.001)), .5))
+		$.dt = max(.001, min(-($.t-($.t=performance.now()*.001)), .5))
 		ctx.reset()
 		try{ render() }finally{
 			$.flush()
