@@ -26,7 +26,6 @@ Gamma has two primary goals to set itself apart from existing graphics/multimedi
 	Gamma(document.getElementById('canvas'), globalThis)
 	// Load Gamma extensions
 	Gamma.font(globalThis)
-	Gamma.utils(globalThis)
 
 	const cat = await Texture.from('./cat.png')
 
@@ -90,7 +89,7 @@ Gamma is well into development, with approximately 4,300 lines of code and a 100
 ### Gamma.wave
 This extension is planned but development has not yet been started. It will add support for importing, playing, mixing, and procedurally generating audio.
 
-### Gamma.util
+### Gamma utils
 - Misc. useful JS utilities relevant for graphical applications
 - Capturing screenshots/screen recordings
 - Downloading files
