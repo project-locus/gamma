@@ -37,7 +37,7 @@ declare global{
 		 * @param w The width allocated to this element by its parent
 		 * @param h The height allocated to this element by its parent
 		 */
-		draw?(ctx: _Drawable2D, ictx: InputContext, w: number, h: number): void
+		draw?(ctx: Drawable2D, ictx: InputContext, w: number, h: number): void
 	}
 
 	/**
@@ -251,12 +251,12 @@ declare global{
 		 * @param anchorX The anchor point's x, from `0` (left) to `1` (right). Default: `.5`
 		 * @param anchorY The anchor point's y, from `0` (bottom) to `1` (top). Default: `.5`
 		 */
-		function Transform(el: GUIElement, transform?: (ctx: _Drawable2D, w: number, h: number, childWidth: number, childHeight: number) => any, anchorX?: number, anchorY?: number): Transform
+		function Transform(el: GUIElement, transform?: (ctx: Drawable2D, w: number, h: number, childWidth: number, childHeight: number) => any, anchorX?: number, anchorY?: number): Transform
 		interface Transform extends GUIElement{
 			/** The child element. Use `.replace()` to change it */
 			readonly child: GUIElement
 			/** See `GUI.Transform()` */
-			transform: (ctx: _Drawable2D, w: number, h: number, childWidth: number, childHeight: number) => any
+			transform: (ctx: Drawable2D, w: number, h: number, childWidth: number, childHeight: number) => any
 			/** See `GUI.Transform()` */
 			anchorX: number
 			/** See `GUI.Transform()` */
@@ -283,7 +283,7 @@ declare global{
 			 * layer.debug = GUI.Layer.flashRedraw
 			 * ```
 			 */
-			function flashRedraw(this: Layer, ctx: _Drawable2D): void
+			function flashRedraw(this: Layer, ctx: Drawable2D): void
 		}
 		interface Layer extends GUIElement{
 			/** The child element. Use `.replace()` to change it */
@@ -313,11 +313,11 @@ declare global{
 			/**
 			 * Called after the layer is drawn, with the context transformed so that the layer covers (0, 0) to (1, 1). Useful for debugging. Default: `null`. See also `GUI.Layer.flashRedraw`
 			 */
-			debug: ((this: Layer, ctx: _Drawable2D) => any) | null
+			debug: ((this: Layer, ctx: Drawable2D) => any) | null
 			/**
 			 * An optional hook called before the child is redrawn, with the same arguments the child will be drawn with. It may return a function, which is called after the child is drawn
 			 */
-			predraw?(ctx: _Drawable2D, ictx: InputContext, w: number, h: number): (() => any) | void
+			predraw?(ctx: Drawable2D, ictx: InputContext, w: number, h: number): (() => any) | void
 		}
 
 		/**
@@ -332,7 +332,7 @@ declare global{
 		function ScrollableLayer(el: GUIElement, anchor: vec2): ScrollableLayer
 		namespace ScrollableLayer{
 			/** The default scrollbar drawing function. See `ScrollableLayer.scrollBarX` */
-			function defaultScrollbar(ctx: _Drawable2D, start: number, size: number, length: number): void
+			function defaultScrollbar(ctx: Drawable2D, start: number, size: number, length: number): void
 		}
 		interface ScrollableLayer extends Layer{
 			/** See `GUI.ScrollableLayer()` */
@@ -361,11 +361,11 @@ declare global{
 			 *
 			 * Default: `GUI.ScrollableLayer.defaultScrollbar`
 			 */
-			scrollBarX: ((ctx: _Drawable2D, start: number, size: number, length: number) => any) | null
+			scrollBarX: ((ctx: Drawable2D, start: number, size: number, length: number) => any) | null
 			/** Same as `.scrollBarX` for the vertical scrollbar. It is only drawn when the child is taller than the layer */
-			scrollBarY: ((ctx: _Drawable2D, start: number, size: number, length: number) => any) | null
+			scrollBarY: ((ctx: Drawable2D, start: number, size: number, length: number) => any) | null
 			/** Shorthand to get `.scrollBarY` or set both `.scrollBarX` and `.scrollBarY` */
-			scrollbar: ((ctx: _Drawable2D, start: number, size: number, length: number) => any) | null
+			scrollbar: ((ctx: Drawable2D, start: number, size: number, length: number) => any) | null
 		}
 
 		/**
@@ -483,7 +483,7 @@ declare global{
 			/**
 			 * Function used to draw the cursor, or null for no cursor. It is inserted into the text at the cursor position (see `RichText.addCb()`) while the field is focused and nothing is selected. Default: a blinking white bar
 			 */
-			drawCursor: ((ctx: _Drawable2D, font: Font) => any) | null
+			drawCursor: ((ctx: Drawable2D, font: Font) => any) | null
 			/**
 			 * Function used to style the selected part of the text, or null for no styling. It is called with a `RichText` containing only the selected text, and should modify it (e.g using `RichText.insertLinePass()`). Default: a blue highlight when focused, gray otherwise
 			 */
@@ -527,9 +527,9 @@ declare global{
 		 * @param dt Time since the last frame, in seconds
 		 * @returns `true` to remove the particle, falsy to keep it
 		 */
-		update(ctx: _Drawable2D, particle: P, dt: number): boolean | void
+		update(ctx: Drawable2D, particle: P, dt: number): boolean | void
 		/** Optionally called once per frame before any particles are updated, with the arguments passed to the container's `draw()`. May return a new context to draw particles with */
-		prepare?(ctx: _Drawable2D, ictx: InputContext, w: number, h: number): _Drawable2D | void
+		prepare?(ctx: Drawable2D, ictx: InputContext, w: number, h: number): Drawable2D | void
 	}
 	/**
 	 * An element that manages and draws many short-lived particles. It keeps redrawing itself (via `.invalidate()`) as long as it has any particles.

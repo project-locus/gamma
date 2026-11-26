@@ -863,7 +863,7 @@ namespace GammaInstance{
 	 * 
 	 * @performance This method itself is mostly CPU-only logic. However, using many drawables, especially interlaced, will have severe performance implications. See `Drawable2D.draw()` for more info
 	 */
-	function Drawable(): Drawable2D
+	function Drawable(): Drawable2DFlat
 	namespace Drawable{
 		/** Maximum number of targets that can be set with `Drawable.setTarget()`. The targets are differentiated by their IDs (0, 1, 2, ..., up to this value) */
 		const MAX_TARGETS: number
@@ -1409,7 +1409,7 @@ namespace GammaInstance{
 		 */
 		clearStencil(): void
 	}
-	interface _Drawable2D extends Drawable, Transformable2D{
+	interface Drawable2D extends Drawable, Transformable2D{
 		/**
 		 * Create a sub-context, which points to the same target, stencil buffer, etc... as this one, much like `Texture.sub()`, however it keeps its own state such as transform, blend, mask, shader, geometry, making it ideal for passing to other functions that may modify their drawable context arbitrarily without us needing to revert it afterwards
 		 * @performance This method is CPU-logic, fast and usually inlined
@@ -1427,7 +1427,7 @@ namespace GammaInstance{
 		 * Create a subcontext with a third dimension, which is capable of drawing 3D geometries using the family of 3D transformations. The 3D content is projected onto the current 2D plane using an orthographic projection. For a perspective projection, see `.sub3dPersp()`. The new context starts with `Geometry3D.CUBE` and `Shader.COLOR_3D_XZ`
 		 * @performance This method is CPU-logic, fast and usually inlined
 		 **/
-		sub3d(): this extends Transformable2Dto3D ? Drawable3DPerspective : Drawable3D
+		sub3d(): this extends Transformable2Dto3D ? Drawable3DPerspective : Drawable3DFlat
 		/**
 		 * Create a subcontext with a third dimension, which is capable of drawing 3D geometries using the family of 3D transformations. The 3D content is projected onto the current 2D plane using a perspective projection defined by the two values.
 		 * 
@@ -1528,7 +1528,7 @@ namespace GammaInstance{
 		 */
 		drawMatv(a: number, b: number, c: number, d: number, e: number, f: number, values: any[]): void
 	}
-	interface Drawable2D extends _Drawable2D, Transformable2Dto2D{
+	interface Drawable2DFlat extends Drawable2D, Transformable2Dto2D{
 		a: number, b: number, c: number, d: number, e: number, f: number
 		/** Whether this drawable context has a perspective component. False here. See `.sub3dPersp()` */
 		readonly perspective: false
@@ -1538,7 +1538,7 @@ namespace GammaInstance{
 		 * @param ctx The drawable to copy state from. Resetting to a Drawable2DPerspective or any kind of Drawable3D is invalid
 		 * @performance This method is CPU-logic, very fast and usually inlined
 		 */
-		resetTo(ctx: Drawable2D): void
+		resetTo(ctx: Drawable2DFlat): void
 		/**
 		 * Reset the 2D transform to a matrix defined by the 6 values, or the default matrix (where (0,0) is the bottom-left and (1,1) is the top right)
 		 * 
@@ -1553,13 +1553,13 @@ namespace GammaInstance{
 		 */
 		reset(a?: number, b?: number, c?: number, d?: number, e?: number, f?: number): void
 	}
-	interface Drawable2DPerspective extends _Drawable2D, Transformable2Dto3D{
+	interface Drawable2DPerspective extends Drawable2D, Transformable2Dto3D{
 		a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number
 		/** Whether this drawable context has a perspective component. True here */
 		readonly perspective: true
 		/**
 		 * Reset all sub-context state (transform, shader, blend, mask, geometry) to match another drawable
-		 * @param ctx The drawable to copy state from. Resetting to a Drawable2D (lacking perspective) or any kind of Drawable3D is invalid
+		 * @param ctx The drawable to copy state from. Resetting to a Drawable2DFlat (lacking perspective) or any kind of Drawable3D is invalid
 		 * @performance This method is CPU-logic, very fast and usually inlined
 		 */
 		resetTo(ctx: Drawable2DPerspective): void
@@ -1578,7 +1578,7 @@ namespace GammaInstance{
 		 */
 		reset(a?: number, b?: number, c?: number, d?: number, e?: number, f?: number, g?: number, h?: number, i?: number): void
 	}
-	interface _Drawable3D extends Drawable, Transformable3D{
+	interface Drawable3D extends Drawable, Transformable3D{
 		/**
 		 * The shader to be used by all drawing operations. See `Shader()` for more info on custom shaders. Can be also set to `null` (or a 2D shader) to use `Shader.COLOR_3D_XZ`, however reading the property never returns null
 		 * @performance Changing this value will create a medium draw boundary (See `Drawable2D.draw()` for more info)
@@ -1598,17 +1598,17 @@ namespace GammaInstance{
 		 * Create a subcontext with one fewer dimension, which is capable of drawing 2D geometries using the (simpler) family of 2D transformations. The 2D context will have its X and Y axes correspond to this context's X and Y axes respectively
 		 * @performance This method is CPU-logic, fast and usually inlined
 		 **/
-		sub2dXY(): this extends Transformable3Dto3D ? Drawable2DPerspective : Drawable2D
+		sub2dXY(): this extends Transformable3Dto3D ? Drawable2DPerspective : Drawable2DFlat
 		/**
 		 * Create a subcontext with one fewer dimension, which is capable of drawing 2D geometries using the (simpler) family of 2D transformations. The 2D context will have its X and Y axes correspond to this context's X and Z axes respectively
 		 * @performance This method is CPU-logic, fast and usually inlined
 		 **/
-		sub2dXZ(): this extends Transformable3Dto3D ? Drawable2DPerspective : Drawable2D
+		sub2dXZ(): this extends Transformable3Dto3D ? Drawable2DPerspective : Drawable2DFlat
 		/**
 		 * Create a subcontext with one fewer dimension, which is capable of drawing 2D geometries using the (simpler) family of 2D transformations. The 2D context will have its X and Y axes correspond to this context's Z and Y axes respectively
 		 * @performance This method is CPU-logic, fast and usually inlined
 		 **/
-		sub2dZY(): this extends Transformable3Dto3D ? Drawable2DPerspective : Drawable2D
+		sub2dZY(): this extends Transformable3Dto3D ? Drawable2DPerspective : Drawable2DFlat
 		/**
 		 * Create a subcontext with additional perspective projection. This is useful for turning an orthographic projection into a perspective one, but is otherwise not particularly intuitive to use.
 		 * 
@@ -1678,7 +1678,7 @@ namespace GammaInstance{
 		 */
 		drawMatv(a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number, values: any[]): void
 	}
-	interface Drawable3D extends _Drawable3D, Transformable3Dto2D{
+	interface Drawable3DFlat extends Drawable3D, Transformable3Dto2D{
 		a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number
 		/** Whether this drawable context has a perspective component. False here. See `.subPersp()` */
 		readonly perspective: false
@@ -1687,7 +1687,7 @@ namespace GammaInstance{
 		 * @param ctx The drawable to copy state from. Resetting to a Drawable3DPerspective or any kind of Drawable2D is invalid
 		 * @performance This method is CPU-logic, very fast and usually inlined
 		 */
-		resetTo(ctx: Drawable3D): void
+		resetTo(ctx: Drawable3DFlat): void
 		/**
 		 * Reset the 3D transform to a matrix defined by the 8 values, or the default matrix (where (0,0,z) is the bottom-left and (1,1,z) is the top right for any z)
 		 * 
@@ -1701,7 +1701,7 @@ namespace GammaInstance{
 		 */
 		reset(a?: number, b?: number, c?: number, d?: number, e?: number, f?: number, g?: number, h?: number): void
 	}
-	interface Drawable3DPerspective extends _Drawable3D, Transformable3Dto3D{
+	interface Drawable3DPerspective extends Drawable3D, Transformable3Dto3D{
 		a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number, j: number, k: number, l: number
 		/** Whether this drawable context has a perspective component. True here */
 		readonly perspective: true
@@ -2310,7 +2310,7 @@ namespace GammaInstance{
 	const flags: number
 
 	/** The main Drawable, representing the <canvas> element. This drawable is limited: it cannot be read from, or have its configuration modified in any way. To do that, draw to a separate drawable and then `paste()` to `ctx` */
-	const ctx: Drawable2D
+	const ctx: Drawable2DFlat
 
 	/**
 	 * Resize the <canvas> element. Will clear any existing content
