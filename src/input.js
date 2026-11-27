@@ -876,7 +876,7 @@ Gamma.input = ($, can = $.canvas) => {
 		bB = n*det, bE = (a*i-c*g)*det, bH = (b*g-a*h)*det
 		bC = o*det, bF = (c*d-a*f)*det, bI = (a*e-b*d)*det
 	})
-	window.addEventListener('pointerup', () => { DeviceOrientationEvent.requestPermission?.(), DeviceMotionEvent.requestPermission?.() }, {once: true})
+	window.addEventListener('pointerup', () => { window.DeviceOrientationEvent?.requestPermission?.(), window.DeviceMotionEvent?.requestPermission?.() }, {once: true})
 	let lastMotion = NaN, lmx = 0, lmy = 0, lmz = 0
 	window.addEventListener('devicemotion', ev => {
 		let {x,y,z} = ev.acceleration, dt = -.001*(lastMotion-(lastMotion=performance.now()))
