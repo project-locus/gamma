@@ -516,10 +516,10 @@ globalThis.download = (file, name = file.name) => {
 		if(type[0] == '@') name = 'file'
 		else{ const j = type.indexOf('/'); name = j >= 0 ? type.slice(0, j) : type }
 	}
-	a.href = URL.createObjectURL(file)
+	const h = a.href = URL.createObjectURL(file)
 	a.download = name
 	a.click()
-	URL.revokeObjectURL(a.href)
+	setTimeout(() => URL.revokeObjectURL(h), 60e3)
 }
 HTMLCanvasElement.prototype.save = function(t='image/png',q){ return new Promise(r => this.toBlob(r, t, q)) }
 globalThis.hsla = (h,s,l,a=1) => {
