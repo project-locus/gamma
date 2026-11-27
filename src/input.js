@@ -850,7 +850,7 @@ Gamma.input = ($, can = $.canvas) => {
 		}else if(document.pointerLockElement == can){ ptrlockPointer = null; return }
 		ictx.setPointer(id, null)
 	})
-	can.addEventListener('touchend', e => e.preventDefault())
+	can.addEventListener('touchstart', e => e.preventDefault())
 	const R = PI/180
 	let bA = NaN, bB = 0, bC = 0, bD = 0, bE = 1, bF = 0, bG = 0, bH = 0, bI = 1
 	window.addEventListener('deviceorientation', ev => {
