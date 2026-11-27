@@ -237,7 +237,7 @@ Gamma.gui = $ => {
 		constructor(c){ super(); this.child = c; this.child.addDependency(this.invalidate) }
 		sized(w, h){ this.width = w; this.height = h; return this }
 		#mouseHovering = false
-		#a = NaN; #b = NaN; #c = NaN; #d = NaN; #e = NaN; #f = NaN; #g = NaN; #h = NaN; #i = NaN; #sw = NaN; #sh = NaN; #tw = 0; #th = 0
+		#a = NaN; #b = NaN; #c = NaN; #d = NaN; #e = NaN; #f = NaN; #g = NaN; #h = NaN; #i = NaN; #sw = NaN; #sh = NaN; #twh = 0
 		#x0 = 0; #rw = -1; #y0 = 0; #rh = 0
 		options = 0; format = Formats.RGBA; mipmaps = 1
 		#tex = null
@@ -279,9 +279,10 @@ Gamma.gui = $ => {
 				if(abs(d-this.#d)*width + abs(e-this.#e)*height > tol1) break a
 				diff = false
 			}
+			if(this.#twh != (width|height<<16)){ this.#twh = width|height<<16; diff = true }
 			if(sw!=this.#sw||this._invalidated||diff||sh!=this.#sh){
 				const bound = ctx.loopBoundary()
-				this.#sw = sw; this.#sh = sh; this._invalidated = false; this.#tw = width; this.#th = height
+				this.#sw = sw; this.#sh = sh; this._invalidated = false
 				this.#a = a; this.#b = b; this.#c = c; this.#d = d; this.#e = e; this.#f = f; this.#g = g; this.#h = h; this.#i = i
 				let tex = this.#tex
 				if(!bound){
